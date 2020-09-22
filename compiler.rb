@@ -35,6 +35,7 @@ require 'provider/inspec'
 require 'provider/terraform'
 require 'provider/terraform_oics'
 require 'provider/terraform_object_library'
+require 'provider/tflint'
 require 'pp' if ENV['COMPILER_DEBUG']
 
 products_to_generate = nil
@@ -193,7 +194,8 @@ all_product_files.each do |product_name|
     override_providers = {
       'oics' => Provider::TerraformOiCS,
       'validator' => Provider::TerraformObjectLibrary,
-      'ansible_devel' => Provider::Ansible::Devel
+      'ansible_devel' => Provider::Ansible::Devel,
+      'tflint' => Provider::TFLint
     }
 
     provider_class = override_providers[force_provider]

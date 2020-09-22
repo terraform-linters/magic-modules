@@ -1,0 +1,16 @@
+<%= lines(autogen_notice(:go, pwd)) -%>
+
+package magicmodules
+
+import (
+	"strings"
+
+	"github.com/terraform-linters/tflint-plugin-sdk/tflint"
+)
+
+// Rules is a list of rules generated from Magic Modules
+var Rules = []tflint.Rule{
+	<% @rule_names.each do |rule_name| -%>
+	New<%= rule_name.camelize -%>Rule(),
+	<% end -%>
+}
