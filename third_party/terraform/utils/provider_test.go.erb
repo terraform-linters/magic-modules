@@ -207,8 +207,6 @@ func getCachedConfig(ctx context.Context, d *schema.ResourceData, configureFunc 
 		return false
 	})
 	config.client.Transport = rec
-	config.wrappedPubsubClient.Transport = rec
-	config.wrappedBigQueryClient.Transport = rec
 	configs[testName] = config
 	return config, nil
 }
@@ -497,6 +495,8 @@ func TestAccProviderBasePath_setInvalidBasePath(t *testing.T) {
 }
 
 func TestAccProviderMeta_setModuleName(t *testing.T) {
+	// not expected to succeed yet. see https://github.com/hashicorp/terraform-provider-google/issues/7370
+	skipIfVcr(t)
 	t.Parallel()
 
 	moduleName := "my-module"
@@ -883,6 +883,10 @@ func getTestProjectFromEnv() string {
 
 // testAccPreCheck ensures at least one of the credentials env variables is set.
 func getTestCredsFromEnv() string {
+	// Return empty string if GOOGLE_USE_DEFAULT_CREDENTIALS is set to true.
+	if multiEnvSearch(credsEnvVars) == "true" {
+		return ""
+	}
 	return multiEnvSearch(credsEnvVars)
 }
 
