@@ -2,7 +2,7 @@ require 'provider/abstract_core'
 
 module Provider
   class TFLint < Provider::Terraform
-    def generate_resource(pwd, data)
+    def generate_resource(pwd, data, generate_code, generate_docs)
       @rule_names = []
 
       tf_product = (@config.legacy_name || data.product.name).underscore
@@ -33,7 +33,7 @@ module Provider
 
     def generate_resource_sweepers(pwd, data) end
 
-    def generate_iam_policy(pwd, data) end
+    def generate_iam_policy(pwd, data, generate_code, generate_docs) end
 
     def generate_operation(pwd, output_folder, _types) end
 
@@ -52,7 +52,7 @@ module Provider
       compile_file_list(output_folder, [['provider.go', 'templates/tflint/provider.go.erb']], file_template)
     end
 
-    def copy_common_files(output_folder)
+    def copy_common_files(output_folder, generate_code, generate_docs)
       Google::LOGGER.info 'Copying common files.'
       copy_file_list(output_folder, [['validation.go', 'third_party/terraform/utils/validation.go']])
     end
