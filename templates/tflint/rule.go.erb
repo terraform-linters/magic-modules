@@ -54,7 +54,7 @@ func (r *<%= @rule_name.camelize -%>Rule) Check(runner tflint.Runner) error {
 <% if @prop.is_a?(Api::Type::Integer) -%>
 		var val int
 <% end -%>
-		err := runner.EvaluateExpr(attribute.Expr, &val)
+		err := runner.EvaluateExpr(attribute.Expr, &val, nil)
 
 <% if @prop.is_a?(Api::Type::Enum) -%>
 <%
