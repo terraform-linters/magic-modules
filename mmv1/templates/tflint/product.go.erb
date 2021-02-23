@@ -1,0 +1,27 @@
+<%= lines(autogen_notice(:go, pwd)) -%>
+
+package magicmodules
+
+// Product is a Go representation of Api::Product
+type Product struct {
+	APIsRequired []APIReference
+}
+
+// APIRequired is a Go reprensentation of Api::Product::ApiReference
+type APIReference struct {
+	Name string
+	URL  string
+}
+
+// Products is a list of Google API products defined in `magic-modules/products/*/api.yaml`
+var Products = map[string]Product{
+	<% @api_products.each do |name, product| -%>
+	"<%= name -%>": {
+		APIsRequired: []APIReference{
+		<% (product.apis_required || []).each do |ref| -%>
+			{ Name: "<%= ref.name %>", URL: "<%= ref.url %>" },
+		<% end -%>
+		},
+	},
+	<% end -%>
+}
