@@ -56,7 +56,7 @@ objects:
       api: 'https://cloud.google.com/workflows/docs/reference/rest/v1/projects.locations.workflows'
     base_url: projects/{{project}}/locations/{{region}}/workflows
     create_url: projects/{{project}}/locations/{{region}}/workflows?workflowId={{name}}
-    self_link: '{{name}}'
+    self_link: 'projects/{{project}}/locations/{{region}}/workflows/{{name}}'
     update_verb: :PATCH
     update_mask: true
     parameters:
@@ -94,7 +94,6 @@ objects:
           A set of key/value label pairs to assign to this Workflow.
       - !ruby/object:Api::Type::String
         name: 'serviceAccount'
-        input: true
         description: |
           Name of the service account associated with the latest workflow version. This service
           account represents the identity of the workflow and determines what permissions the workflow has.
@@ -102,7 +101,6 @@ objects:
           Format: projects/{project}/serviceAccounts/{account}.
       - !ruby/object:Api::Type::String
         name: 'sourceContents'
-        input: true
         description: |
           Workflow code to be executed. The size limit is 32KB.
       - !ruby/object:Api::Type::String
