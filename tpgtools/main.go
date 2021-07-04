@@ -207,17 +207,23 @@ func getResources(packagePath string, specs []os.FileInfo) []*Resource {
 			glog.Exit(err)
 		}
 
-		lRaw := schema.Extension["x-dcl-locations"].([]interface{})
+		lRaw := schema.Extension["x-dcl-locations"]
+		var schemaLocations []interface{}
+		if lRaw == nil {
+			schemaLocations = make([]interface{}, 0)
+		} else {
+			schemaLocations = lRaw.([]interface{})
+		}
 
 		typeFetcher := NewTypeFetcher(document)
 		var locations []string
-		// If the schema cannot be split into two or mor locations, we specify this
+		// If the schema cannot be split into two or more locations, we specify this
 		// by passing a single empty location string.
-		if len(lRaw) < 2 {
+		if len(schemaLocations) < 2 {
 			locations = make([]string, 1)
 		} else {
-			locations = make([]string, 0, len(lRaw))
-			for _, l := range lRaw {
+			locations = make([]string, 0, len(schemaLocations))
+			for _, l := range schemaLocations {
 				locations = append(locations, l.(string))
 			}
 		}
@@ -322,13 +328,13 @@ func generateResourceFile(res *Resource) {
 
 	formatted, err := formatSource(&contents)
 	if err != nil {
-		glog.Error(fmt.Errorf("error formatting %v: %v - resource \n ", res.Package()+res.Name(), err))
+		glog.Error(fmt.Errorf("error formatting %v: %v - resource \n ", res.ProductName()+res.Name(), err))
 	}
 
 	if oPath == nil || *oPath == "" {
 		fmt.Printf("%v", string(formatted))
 	} else {
-		outname := fmt.Sprintf("resource_%s_%s.go", res.Package(), res.Name())
+		outname := fmt.Sprintf("resource_%s_%s.go", res.ProductName(), res.Name())
 		err := ioutil.WriteFile(path.Join(*oPath, terraformResourceDirectory, outname), formatted, 0644)
 		if err != nil {
 			glog.Exit(err)
@@ -364,13 +370,13 @@ func generateSweeperFile(res *Resource) {
 
 	formatted, err := formatSource(&contents)
 	if err != nil {
-		glog.Error(fmt.Errorf("error formatting %v: %v - sweeper", res.Package()+res.Name(), err))
+		glog.Error(fmt.Errorf("error formatting %v: %v - sweeper", res.ProductName()+res.Name(), err))
 	}
 
 	if oPath == nil || *oPath == "" {
 		fmt.Printf("%v", string(formatted))
 	} else {
-		outname := fmt.Sprintf("resource_%s_%s_sweeper_test.go", res.Package(), res.Name())
+		outname := fmt.Sprintf("resource_%s_%s_sweeper_test.go", res.ProductName(), res.Name())
 		err := ioutil.WriteFile(path.Join(*oPath, terraformResourceDirectory, outname), formatted, 0644)
 		if err != nil {
 			glog.Exit(err)
