@@ -212,7 +212,28 @@ func (p Property) DefaultStateGetter() string {
 }
 
 func (p Property) ChangeStateGetter() string {
-	return buildGetter(p, fmt.Sprintf("oldOnly(d.GetChange(%q))", p.Name()))
+	return buildGetter(p, fmt.Sprintf("oldValue(d.GetChange(%q))", p.Name()))
+}
+
+// Builds a Getter for constructing a shallow
+// version of the object for destory purposes
+func (p Property) StateGetterForDestroyTest() string {
+	pullValueFromState := fmt.Sprintf(`rs.Primary.Attributes["%s"]`, p.Name())
+
+	switch p.Type.String() {
+	case SchemaTypeBool:
+		return fmt.Sprintf(`dcl.Bool(%s == "true")`, pullValueFromState)
+	case SchemaTypeString:
+		if p.Type.IsEnum() {
+			return fmt.Sprintf("%s.%sEnumRef(%s)", p.resource.Package(), p.ObjectType(), pullValueFromState)
+		}
+		if p.Computed {
+			return fmt.Sprintf("dcl.StringOrNil(%s)", pullValueFromState)
+		}
+		return fmt.Sprintf("dcl.String(%s)", pullValueFromState)
+	}
+
+	return ""
 }
 
 // Builds a Getter for a property with given raw value
