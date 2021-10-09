@@ -61,6 +61,10 @@ resource "google_container_node_pool" "primary_preemptible_nodes" {
 }
 ```
 
+~> **Note:** It is recommended that node pools be created and managed as separate resources as in the example above.
+This allows node pools to be added and removed without recreating the cluster.  Node pools defined directly in the
+`google_container_cluster` resource cannot be removed without re-creating the cluster.
+
 ## Example Usage - with the default node pool
 
 ```hcl
@@ -180,6 +184,9 @@ below.
 Options are `VPC_NATIVE` or `ROUTES`. `VPC_NATIVE` enables [IP aliasing](https://cloud.google.com/kubernetes-engine/docs/how-to/ip-aliases),
 and requires the `ip_allocation_policy` block to be defined. By default when this field is unspecified, GKE will create a `ROUTES`-based cluster.
 
+* `logging_config` - (Optional) Logging configuration for the cluster.
+    Structure is documented below.
+
 * `logging_service` - (Optional) The logging service that the cluster should
     write logs to. Available options include `logging.googleapis.com`(Legacy Stackdriver),
     `logging.googleapis.com/kubernetes`(Stackdriver Kubernetes Engine Logging), and `none`. Defaults to `logging.googleapis.com/kubernetes`
@@ -212,6 +219,9 @@ Structure is documented below. This has been deprecated as of GKE 1.19.
 -> If you are using the `google_container_engine_versions` datasource with a regional cluster, ensure that you have provided a `location`
 to the datasource. A region can have a different set of supported versions than its corresponding zones, and not all zones in a
 region are guaranteed to support the same version.
+
+* `monitoring_config` - (Optional) Monitoring configuration for the cluster.
+    Structure is documented below.
 
 * `monitoring_service` - (Optional) The monitoring service that the cluster
     should write metrics to.
@@ -452,6 +462,16 @@ as "Intel Haswell" or "Intel Sandy Bridge".
 The `authenticator_groups_config` block supports:
 
 * `security_group` - (Required) The name of the RBAC security group for use with Google security groups in Kubernetes RBAC. Group name must be in format `gke-security-groups@yourdomain.com`.
+
+The `logging_config` block supports:
+
+*  `enable_components` - (Required) The GKE components exposing logs. Supported values include:
+`SYSTEM_COMPONENTS` and `WORKLOADS`.
+
+The `monitoring_config` block supports:
+
+*  `enable_components` - (Required) The GKE components exposing logs. Only `SYSTEM_COMPONENTS`
+is supported.
 
 The `maintenance_policy` block supports:
 * `daily_maintenance_window` - (Optional) structure documented below.
@@ -852,14 +872,20 @@ The `taint` block supports:
 
 * `effect` (Required) Effect for taint. Accepted values are `NO_SCHEDULE`, `PREFER_NO_SCHEDULE`, and `NO_EXECUTE`.
 
-The `workload_metadata_config` block supports:
+The `workload_metadata_config` must have exactly one of `node_metadata` (deprecated) or `mode` set. This block supports:
 
-* `node_metadata` (Required) How to expose the node metadata to the workload running on the node.
+* `node_metadata` (Optional, Deprecated) How to expose the node metadata to the workload running on the node. This is deprecated in favor of `mode`
     Accepted values are:
     * UNSPECIFIED: Not Set
     * SECURE: Prevent workloads not in hostNetwork from accessing certain VM metadata, specifically kube-env, which contains Kubelet credentials, and the instance identity token. See [Metadata Concealment](https://cloud.google.com/kubernetes-engine/docs/how-to/metadata-proxy) documentation.
     * EXPOSE: Expose all VM metadata to pods.
     * GKE_METADATA_SERVER: Enables [workload identity](https://cloud.google.com/kubernetes-engine/docs/how-to/workload-identity) on the node.
+
+* `mode` (Optional) How to expose the node metadata to the workload running on the node.
+    Accepted values are:
+    * UNSPECIFIED: Not Set
+    * GCE_METADATA: Expose all Compute Engine metadata to pods.
+    * GKE_METADATA: Run the GKE Metadata Server on this node. The GKE Metadata Server exposes a metadata API to workloads that is compatible with the V1 Compute Metadata APIs exposed by the Compute Engine and App Engine Metadata Servers. This feature can only be enabled if [workload identity](https://cloud.google.com/kubernetes-engine/docs/how-to/workload-identity) is enabled at the cluster level.
 
 The `kubelet_config` block supports:
 
