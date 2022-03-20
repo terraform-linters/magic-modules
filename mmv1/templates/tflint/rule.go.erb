@@ -6,13 +6,15 @@ import (
 	"fmt"
 	"regexp"
 
-	hcl "github.com/hashicorp/hcl/v2"
+	"github.com/terraform-linters/tflint-plugin-sdk/hclext"
 	"github.com/terraform-linters/tflint-plugin-sdk/tflint"
-    "github.com/hashicorp/terraform-plugin-sdk/v2/helper/validation"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/validation"
 )
 
 // <%= @rule_name.camelize -%>Rule checks the pattern is valid
 type <%= @rule_name.camelize -%>Rule struct {
+	tflint.DefaultRule
+
 	resourceType  string
 	attributeName string
 }
@@ -36,7 +38,7 @@ func (r *<%= @rule_name.camelize -%>Rule) Enabled() bool {
 }
 
 // Severity returns the rule severity
-func (r *<%= @rule_name.camelize -%>Rule) Severity() string {
+func (r *<%= @rule_name.camelize -%>Rule) Severity() tflint.Severity {
 	return tflint.ERROR
 }
 
@@ -47,7 +49,19 @@ func (r *<%= @rule_name.camelize -%>Rule) Link() string {
 
 // Check checks the pattern is valid
 func (r *<%= @rule_name.camelize -%>Rule) Check(runner tflint.Runner) error {
-	return runner.WalkResourceAttributes(r.resourceType, r.attributeName, func(attribute *hcl.Attribute) error {
+	resources, err := runner.GetResourceContent(r.resourceType, &hclext.BodySchema{
+		Attributes: []hclext.AttributeSchema{{Name: r.attributeName}},
+	}, nil)
+	if err != nil {
+		return err
+	}
+
+	for _, resource := range resources.Blocks {
+		attribute, exists := resource.Body.Attributes[r.attributeName]
+		if !exists {
+			continue
+		}
+
 <% if @prop.is_a?(Api::Type::String) || @prop.is_a?(Api::Type::Enum) -%>
         var val string
 <% end -%>
@@ -61,25 +75,30 @@ func (r *<%= @rule_name.camelize -%>Rule) Check(runner tflint.Runner) error {
 	enum_values = @prop.values
 	enum_values.push "" unless @prop.required
 -%>
-        validateFunc := validation.StringInSlice([]string{"<%= enum_values.join '","' -%>"}, false)
+		validateFunc := validation.StringInSlice([]string{"<%= enum_values.join '","' -%>"}, false)
 <% end -%>
 <% if @prop.validation&.regex -%>
-        validateFunc := validateRegexp(`<%= @prop.validation.regex -%>`)
+		validateFunc := validateRegexp(`<%= @prop.validation.regex -%>`)
 <% end -%>
 <% if @prop.validation&.function -%>
-        validateFunc := <%= @prop.validation.function -%>
+		validateFunc := <%= @prop.validation.function -%>
 <% end -%>
 
-		return runner.EnsureNoError(err, func() error {
-            _, errors := validateFunc(val, r.attributeName)
-            for _, err := range errors {
-                <% if @prop.sensitive -%>
-                runner.EmitIssueOnExpr(r, fmt.Sprintf(`"%s" is invalid value`, r.attributeName), attribute.Expr)
-                <% else -%>
-                runner.EmitIssueOnExpr(r, err.Error(), attribute.Expr)
-                <% end -%>
-            }
-            return nil
-        })
-	})
+		err = runner.EnsureNoError(err, func() error {
+			_, errors := validateFunc(val, r.attributeName)
+			for _, err := range errors {
+				<% if @prop.sensitive -%>
+				runner.EmitIssue(r, fmt.Sprintf(`"%s" is invalid value`, r.attributeName), attribute.Expr.Range())
+				<% else -%>
+				runner.EmitIssue(r, err.Error(), attribute.Expr.Range())
+				<% end -%>
+			}
+			return nil
+		})
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
