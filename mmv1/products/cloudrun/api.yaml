@@ -252,13 +252,13 @@ objects:
     parent_resource_attribute: 'service'
     base_url: v1/projects/{{project}}/locations/{{location}}/services/{{service}}
     import_format: ["projects/{{project}}/locations/{{location}}/services/{{service}}", "{{service}}"]
-    exclude_validator: true
   parameters:
   - !ruby/object:Api::Type::String
     name: location
     description: The location of the cloud run instance. eg us-central1
     url_param_only: true
     required: true
+    input: true
   properties:
   - !ruby/object:Api::Type::String
     name: name
@@ -313,7 +313,7 @@ objects:
         To correlate a Revision, and/or to force a Revision to be created when the
         spec doesn't otherwise change, a nonce label may be provided in the
         template metadata. For more details, see:
-        https://github.com/knative/serving/blob/master/docs/client-conventions.md#associate-modifications-with-revisions
+        https://github.com/knative/serving/blob/main/docs/client-conventions.md#associate-modifications-with-revisions
 
         Cloud Run does not currently support referencing a build that is
         responsible for materializing the container image from source.
@@ -403,7 +403,7 @@ objects:
             In the context of a Revision, we disallow a number of the fields of
             this Container, including: name, ports, and volumeMounts.
             The runtime contract is documented here:
-            https://github.com/knative/serving/blob/master/docs/runtime-contract.md
+            https://github.com/knative/serving/blob/main/docs/runtime-contract.md
           item_type: !ruby/object:Api::Type::NestedObject
             properties:
             - !ruby/object:Api::Type::String
@@ -562,14 +562,13 @@ objects:
                 properties:
                 - !ruby/object:Api::Type::String
                   name: name
-                  description: Name of the port.
+                  description: If specified, used to specify which protocol to use. Allowed values are "http1" and "h2c".
                 - !ruby/object:Api::Type::String
                   name: protocol
-                  description: Protocol used on port. Defaults to TCP.
+                  description: Protocol for port. Must be "TCP". Defaults to "TCP".
                 - !ruby/object:Api::Type::Integer
                   name: containerPort
-                  description: Port number.
-                  required: true
+                  description: Port number the container listens on. This must be a valid port number, 0 < x < 65536.
             - !ruby/object:Api::Type::NestedObject
               name: resources
               description: |-
@@ -662,6 +661,13 @@ objects:
                       commas.
                       The alias definitions must be set on the run.googleapis.com/secrets
                       annotation.
+                  - !ruby/object:Api::Type::Integer
+                    name: defaultMode
+                    description: |-
+                      Mode bits to use on created files by default. Must be a value between 0000
+                      and 0777. Defaults to 0644. Directories within the path are not affected by
+                      this setting. This might be in conflict with other options that affect the
+                      file mode, like fsGroup, and the result can be other mode bits set.
                   - !ruby/object:Api::Type::Array
                     name: items
                     description: |-
@@ -686,6 +692,13 @@ objects:
                             May not be an absolute path.
                             May not contain the path element '..'.
                             May not start with the string '..'.
+                        - !ruby/object:Api::Type::Integer
+                          name: mode
+                          description: |-
+                            Mode bits to use on this file, must be a value between 0000 and 0777. If
+                            not specified, the volume defaultMode will be used. This might be in
+                            conflict with other options that affect the file mode, like fsGroup, and
+                            the result can be other mode bits set.
         - !ruby/object:Api::Type::Enum
           name: servingState
           deprecation_message: "Not supported by Cloud Run fully managed"

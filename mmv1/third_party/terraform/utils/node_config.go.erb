@@ -156,6 +156,24 @@ func schemaNodeConfig() *schema.Schema {
 					},
 				},
 
+				"gvnic": {
+					Type:     schema.TypeList,
+					Optional: true,
+					MaxItems: 1,
+					Description: `Enable or disable gvnic in the node pool.`,
+					ForceNew: true,
+					Elem: &schema.Resource{
+						Schema: map[string]*schema.Schema{
+							"enabled": {
+								Type:        schema.TypeBool,
+								Required:    true,
+								ForceNew:    true,
+								Description: `Whether or not gvnic is enabled`,
+							},
+						},
+					},
+				},
+
 				"machine_type": {
 					Type:     schema.TypeString,
 					Optional: true,
@@ -331,14 +349,13 @@ func schemaNodeConfig() *schema.Schema {
 						},
 					},
 				},
-
+	<% end -%>
 				"boot_disk_kms_key": {
 					Type:       schema.TypeString,
 					Optional:   true,
 					ForceNew:   true,
 					Description: `The Customer Managed Encryption Key used to encrypt the boot disk attached to each node in the node pool.`,
 				},
-	<% end -%>
 	<% unless version == 'ga' -%>
 				// Note that AtLeastOneOf can't be set because this schema is reused by
 				// two different resources.
@@ -458,6 +475,13 @@ func expandNodeConfig(v interface{}) *container.NodeConfig {
 		}
 	}
 
+	if v, ok := nodeConfig["gvnic"]; ok && len(v.([]interface{})) > 0 {
+		conf := v.([]interface{})[0].(map[string]interface{})
+		nc.Gvnic = &container.VirtualNIC{
+			Enabled: conf["enabled"].(bool),
+		}
+	}
+
 	if scopes, ok := nodeConfig["oauth_scopes"]; ok {
 		scopesSet := scopes.(*schema.Set)
 		scopes := make([]string, scopesSet.Len())
@@ -548,12 +572,11 @@ func expandNodeConfig(v interface{}) *container.NodeConfig {
 			SandboxType: conf["sandbox_type"].(string),
 		}
 	}
-
+<% end -%>
 	if v, ok := nodeConfig["boot_disk_kms_key"]; ok {
 		nc.BootDiskKmsKey = v.(string)
 	}
 
-<% end -%>
 <% unless version == 'ga' -%>
 	if v, ok := nodeConfig["kubelet_config"]; ok {
 		nc.KubeletConfig = expandKubeletConfig(v)
@@ -655,6 +678,7 @@ func flattenNodeConfig(c *container.NodeConfig) []map[string]interface{} {
 		"ephemeral_storage_config": flattenEphemeralStorageConfig(c.EphemeralStorageConfig),
 <% end -%>
 		"gcfs_config":              flattenGcfsConfig(c.GcfsConfig),
+		"gvnic":										flattenGvnic(c.Gvnic),
 		"service_account":          c.ServiceAccount,
 		"metadata":                 c.Metadata,
 		"image_type":               c.ImageType,
@@ -670,8 +694,8 @@ func flattenNodeConfig(c *container.NodeConfig) []map[string]interface{} {
 		"workload_metadata_config": flattenWorkloadMetadataConfig(c.WorkloadMetadataConfig),
 <% unless version == 'ga' -%>
 		"sandbox_config": 			flattenSandboxConfig(c.SandboxConfig),
-		"boot_disk_kms_key": 		c.BootDiskKmsKey,
 <% end -%>
+		"boot_disk_kms_key": 		c.BootDiskKmsKey,
 <% unless version == 'ga' -%>
 		"kubelet_config":           flattenKubeletConfig(c.KubeletConfig),
 		"linux_node_config":        flattenLinuxNodeConfig(c.LinuxNodeConfig),
@@ -722,6 +746,16 @@ func flattenEphemeralStorageConfig(c *container.EphemeralStorageConfig) []map[st
 <% end -%>
 
 func flattenGcfsConfig(c *container.GcfsConfig) []map[string]interface{} {
+	result := []map[string]interface{}{}
+	if c != nil {
+		result = append(result, map[string]interface{}{
+			"enabled": c.Enabled,
+		})
+	}
+	return result
+}
+
+func flattenGvnic(c *container.VirtualNIC) []map[string]interface{} {
 	result := []map[string]interface{}{}
 	if c != nil {
 		result = append(result, map[string]interface{}{

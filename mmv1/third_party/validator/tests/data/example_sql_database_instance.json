@@ -1,6 +1,6 @@
 [
   {
-    "name": "//cloudsql.googleapis.com/projects/{{.Provider.project}}/instances/master-instance",
+    "name": "//cloudsql.googleapis.com/projects/{{.Provider.project}}/instances/main-instance",
     "asset_type": "sqladmin.googleapis.com/Instance",
     "ancestry_path": "{{.Ancestry}}/project/{{.Provider.project}}",
     "resource": {
@@ -10,10 +10,13 @@
       "parent": "//cloudresourcemanager.googleapis.com/projects/{{.Provider.project}}",
       "data": {
         "databaseVersion": "POSTGRES_9_6",
-        "name": "master-instance",
+        "name": "main-instance",
         "project": "{{.Provider.project}}",
         "region": "us-central1",
         "settings": {
+          "activationPolicy": "ALWAYS",
+          "availabilityType": "ZONAL",
+          "dataDiskType": "PD_SSD",
           "pricingPlan": "PER_USE",
           "storageAutoResize": true,
           "tier": "db-f1-micro"

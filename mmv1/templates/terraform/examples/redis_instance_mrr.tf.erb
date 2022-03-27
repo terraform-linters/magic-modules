@@ -1,5 +1,4 @@
 resource "google_redis_instance" "<%= ctx[:primary_resource_id] %>" {
-  provider = google-beta
   name           = "<%= ctx[:vars]['instance_name'] %>"
   tier           = "STANDARD_HA"
   memory_size_gb = 5

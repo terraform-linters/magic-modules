@@ -5,25 +5,29 @@
     "root_module": {
       "resources": [
         {
-          "address": "google_sql_database_instance.master",
+          "address": "google_sql_database_instance.main",
           "mode": "managed",
           "type": "google_sql_database_instance",
-          "name": "master",
+          "name": "main",
           "provider_name": "registry.terraform.io/hashicorp/google",
           "schema_version": 0,
           "values": {
             "clone": [],
             "database_version": "POSTGRES_9_6",
             "deletion_protection": true,
-            "name": "master-instance",
+            "name": "main-instance",
             "region": "us-central1",
             "restore_backup_context": [],
             "root_password": null,
             "settings": [
               {
+                "activation_policy": "ALWAYS",
+                "availability_type": "ZONAL",
+                "collation": null,
                 "database_flags": [],
                 "disk_autoresize": true,
                 "disk_autoresize_limit": 0,
+                "disk_type": "PD_SSD",
                 "insights_config": [],
                 "maintenance_window": [],
                 "pricing_plan": "PER_USE",
@@ -31,6 +35,24 @@
               }
             ],
             "timeouts": null
+          },
+          "sensitive_values": {
+            "clone": [],
+            "ip_address": [],
+            "replica_configuration": [],
+            "restore_backup_context": [],
+            "server_ca_cert": [],
+            "settings": [
+              {
+                "backup_configuration": [],
+                "database_flags": [],
+                "insights_config": [],
+                "ip_configuration": [],
+                "location_preference": [],
+                "maintenance_window": [],
+                "user_labels": {}
+              }
+            ]
           }
         }
       ]
@@ -38,10 +60,10 @@
   },
   "resource_changes": [
     {
-      "address": "google_sql_database_instance.master",
+      "address": "google_sql_database_instance.main",
       "mode": "managed",
       "type": "google_sql_database_instance",
-      "name": "master",
+      "name": "main",
       "provider_name": "registry.terraform.io/hashicorp/google",
       "change": {
         "actions": [
@@ -52,15 +74,19 @@
           "clone": [],
           "database_version": "POSTGRES_9_6",
           "deletion_protection": true,
-          "name": "master-instance",
+          "name": "main-instance",
           "region": "us-central1",
           "restore_backup_context": [],
           "root_password": null,
           "settings": [
             {
+              "activation_policy": "ALWAYS",
+              "availability_type": "ZONAL",
+              "collation": null,
               "database_flags": [],
               "disk_autoresize": true,
               "disk_autoresize_limit": 0,
+              "disk_type": "PD_SSD",
               "insights_config": [],
               "maintenance_window": [],
               "pricing_plan": "PER_USE",
@@ -86,18 +112,35 @@
           "service_account_email_address": true,
           "settings": [
             {
-              "activation_policy": true,
-              "availability_type": true,
               "backup_configuration": true,
               "database_flags": [],
               "disk_size": true,
-              "disk_type": true,
               "insights_config": [],
               "ip_configuration": true,
               "location_preference": true,
               "maintenance_window": [],
               "user_labels": true,
               "version": true
+            }
+          ]
+        },
+        "before_sensitive": false,
+        "after_sensitive": {
+          "clone": [],
+          "ip_address": [],
+          "replica_configuration": [],
+          "restore_backup_context": [],
+          "root_password": true,
+          "server_ca_cert": [],
+          "settings": [
+            {
+              "backup_configuration": [],
+              "database_flags": [],
+              "insights_config": [],
+              "ip_configuration": [],
+              "location_preference": [],
+              "maintenance_window": [],
+              "user_labels": {}
             }
           ]
         }
@@ -108,17 +151,17 @@
     "root_module": {
       "resources": [
         {
-          "address": "google_sql_database_instance.master",
+          "address": "google_sql_database_instance.main",
           "mode": "managed",
           "type": "google_sql_database_instance",
-          "name": "master",
+          "name": "main",
           "provider_config_key": "google",
           "expressions": {
             "database_version": {
               "constant_value": "POSTGRES_9_6"
             },
             "name": {
-              "constant_value": "master-instance"
+              "constant_value": "main-instance"
             },
             "region": {
               "constant_value": "us-central1"

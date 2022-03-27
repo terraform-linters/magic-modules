@@ -93,7 +93,7 @@ steps:
     - name: 'gcr.io/graphite-docker-images/downstream-builder'
       secretEnv: ["GITHUB_TOKEN"]
       id: tf-validator-push
-      waitFor: ["tf-validator-sync"]
+      waitFor: ["tf-validator-sync", "tpg-push"]
       args:
           - 'downstream'
           - 'terraform-validator'
@@ -125,7 +125,7 @@ steps:
       args:
           - 'downstream'
           - 'tf-oics'
-          - 'ga'
+          - 'beta'
           - $COMMIT_SHA
 
     - name: 'gcr.io/cloud-builders/git'
@@ -153,7 +153,7 @@ steps:
       args:
           - 'downstream'
           - 'tf-cloud-docs'
-          - 'ga'
+          - 'beta'
           - $COMMIT_SHA
 
     - name: 'gcr.io/cloud-builders/git'
