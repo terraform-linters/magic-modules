@@ -13,12 +13,11 @@ generates.
 Magic Modules generates GCP support for:
 
 * Terraform
-* Ansible
 
 In addition, Magic Modules generates support for several companion
 features/tools:
 
-* Terraform Google Inventory Mapper
+* Terraform Validator
 * Terraform in Cloud Shell
 
 Importantly, Magic Modules *isn't* full code generation. Every change is made
@@ -36,12 +35,18 @@ to help you get it set up.
 
 [![Open in Cloud Shell](http://gstatic.com/cloudssh/images/open-btn.svg)](https://console.cloud.google.com/cloudshell/open?git_repo=https://github.com/GoogleCloudPlatform/magic-modules&tutorial=mmv1/TUTORIAL.md)
 
-### Requirements
+### Preparing your environment
 
 To get started, you'll need:
 
+* Go
+  * If you're using a Mac with Homebrew installed, you can follow these
+    instructions to set up Go: [YouTube video](https://www.youtube.com/watch?v=VQVyvulNnzs).
+  * If you're using Cloud Shell, Go is already installed.
 * Ruby 2.6.0
-  * You can use `rbenv` to manage your Ruby version(s)
+  * You can use `rbenv` to manage your Ruby version(s).
+  * To install `rbenv`, run `sudo apt install rbenv`.
+  * Then run `rbenv install 2.6.0`.
 * [`Bundler`](https://github.com/bundler/bundler)
   * This can be installed with `gem install bundler`
 * If you are getting "Too many open files" ulimit needs to be raised.
@@ -59,6 +64,7 @@ that directory.
 To get started right away, use the bootstrap script with:
 
 ```bash
+cd mmv1
 ./tools/bootstrap
 ```
 
@@ -93,6 +99,27 @@ Now, you can verify you're ready with:
 ./tools/doctor
 ```
 
+Expected output:
+
+```
+Check for rbenv in path...
+   found!
+Checking ruby version...
+2.6.0 (set by [PATH]/magic-modules/mmv1/.ruby-version)
+Check for bundler in path...
+   found!
+Check for go in path...
+   found!
+Check for goimports in path...
+   found!
+Check for python in path...
+   found!
+Check for git in path...
+   found!
+Check for black in path...
+   found!
+```
+
 ### Generating the Terraform Providers
 
 Before making any changes, you can compile the Terraform provider you're working
@@ -104,6 +131,8 @@ OUTPUT_PATH should be set to the location of your provider repository, which is
 recommended to be inside your GOPATH.
 
 ```bash
+cd magic-modules
+
 make terraform VERSION=ga OUTPUT_PATH="$GOPATH/src/github.com/hashicorp/terraform-provider-google"
 make terraform VERSION=beta OUTPUT_PATH="$GOPATH/src/github.com/hashicorp/terraform-provider-google-beta"
 
@@ -156,7 +185,7 @@ While most small changes won't require fiddling with overrides, each tool has
 often minor differences- the naming of a field, or whether it's required or not.
 
 You can find them under the folder for a product, with the name `{{tool}}.yaml`.
-For example, Ansible's overrides for Cloud SQL are present at `products/sql/ansible.yaml`
+For example, Terraform's overrides for Cloud SQL are present at `products/sql/terraform.yaml`
 
 You can find a full reference for each tool under `overrides/{{tool}}/resource_override.rb`
 and `overrides/{{tool}}/property_override.rb`, as well as some other tool-specific
@@ -192,7 +221,6 @@ tool;
 
 Tool             | Testing Guide
 -----------------|--------------
-ansible          | [instructions](https://docs.ansible.com/ansible/devel/dev_guide/testing.html)
 terraform        | [`google` provider testing guide](https://github.com/hashicorp/terraform-provider-google/blob/main/.github/CONTRIBUTING.md#tests)
 terraform (beta) | [`google-beta` provider testing guide](https://github.com/hashicorp/terraform-provider-google-beta/blob/main/.github/CONTRIBUTING.md#tests)
 
