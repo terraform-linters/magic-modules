@@ -26,8 +26,8 @@ resource "google_compute_instance" "default" {
 
 # to allow http traffic
 resource "google_compute_firewall" "default" {
-  name    = "<%= ctx[:vars]['allow_http_traffic'] %>"
-  network = "default"
+  name     = "<%= ctx[:vars]['allow_http_traffic'] %>"
+  network  = "default"
   allow {
     ports    = ["80"]
     protocol = "tcp"

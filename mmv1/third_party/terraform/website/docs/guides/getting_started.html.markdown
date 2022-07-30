@@ -1,7 +1,5 @@
 ---
-layout: "google"
 page_title: "Getting Started with the Google provider"
-sidebar_current: "docs-google-provider-guides-getting-started"
 description: |-
   Getting started with the Google Cloud Platform provider
 ---
@@ -188,6 +186,8 @@ You need to use a different [environment variable](https://www.terraform.io/docs
 3. Mark the variable as **Sensitive** and click **Save variable**.
 
 All runs within the workspace will use the `GOOGLE_CREDENTIALS` variable to authenticate with Google Cloud Platform.
+
+~> **Note:** When running inside a CLI-driven TFC workspace, local environment variables will only be accessible when executed [locally](https://www.terraform.io/cloud-docs/workspaces/settings#execution-mode). All credentials environment variables (including default application credentials) need to be set in the [Variables tab](https://www.terraform.io/cloud-docs/workspaces/variables/managing-variables#workspace-specific-variables) in order to be accessible by workspaces executed remotely.
 
 ## Provisioning your resources
 By now, your config will look something like:

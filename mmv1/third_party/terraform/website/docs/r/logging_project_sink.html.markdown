@@ -1,8 +1,6 @@
 ---
 subcategory: "Cloud (Stackdriver) Logging"
-layout: "google"
 page_title: "Google: google_logging_project_sink"
-sidebar_current: "docs-google-logging-project-sink"
 description: |-
   Manages a project-level logging sink.
 ---
@@ -99,18 +97,19 @@ resource "google_logging_project_sink" "log-bucket" {
   destination = "logging.googleapis.com/projects/my-project/locations/global/buckets/_Default"
 
   exclusions {
-		name = "nsexcllusion1"
-		description = "Exclude logs from namespace-1 in k8s"
-		filter = "resource.type = k8s_container resource.labels.namespace_name=\"namespace-1\" "
-	}
+    name        = "nsexcllusion1"
+    description = "Exclude logs from namespace-1 in k8s"
+    filter      = "resource.type = k8s_container resource.labels.namespace_name=\"namespace-1\" "
+  }
 
-	exclusions {
-		name = "nsexcllusion2"
-		description = "Exclude logs from namespace-2 in k8s"
-		filter = "resource.type = k8s_container resource.labels.namespace_name=\"namespace-2\" "
-	}
+  exclusions {
+    name        = "nsexcllusion2"
+    description = "Exclude logs from namespace-2 in k8s"
+    filter      = "resource.type = k8s_container resource.labels.namespace_name=\"namespace-2\" "
+  }
 
   unique_writer_identity = true
+}
 ```
 
 
