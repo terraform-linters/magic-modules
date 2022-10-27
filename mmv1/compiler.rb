@@ -34,7 +34,6 @@ require 'provider/ansible_devel'
 require 'provider/inspec'
 require 'provider/terraform'
 require 'provider/terraform_oics'
-require 'provider/terraform_cloud_docs'
 require 'provider/terraform_validator'
 require 'provider/tflint'
 require 'pp' if ENV['COMPILER_DEBUG']
@@ -203,7 +202,6 @@ all_product_files.each do |product_name|
   else
     override_providers = {
       'oics' => Provider::TerraformOiCS,
-      'cloud_docs' => Provider::TerraformCloudDocs,
       'validator' => Provider::TerraformValidator,
       'ansible_devel' => Provider::Ansible::Devel,
       'tflint' => Provider::TFLint
@@ -248,8 +246,7 @@ common_compile_file = "provider/#{provider_name}/common~compile.yaml"
 if generate_code
   provider&.compile_common_files(
     output_path,
-    products_for_version.reject { |product| product[:definitions].cgc_only }
-                        .sort_by { |p| p[:definitions].name.downcase },
+    products_for_version.sort_by { |p| p[:definitions].name.downcase },
     common_compile_file
   )
 
@@ -258,8 +255,7 @@ if generate_code
     common_compile_file = "#{override_dir}/common~compile.yaml"
     provider&.compile_common_files(
       output_path,
-      products_for_version.reject { |product| product[:definitions].cgc_only }
-                          .sort_by { |p| p[:definitions].name.downcase },
+      products_for_version.sort_by { |p| p[:definitions].name.downcase },
       common_compile_file,
       override_dir
     )
