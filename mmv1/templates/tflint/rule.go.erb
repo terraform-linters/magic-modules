@@ -63,38 +63,39 @@ func (r *<%= @rule_name.camelize -%>Rule) Check(runner tflint.Runner) error {
 		}
 
 <% if @prop.is_a?(Api::Type::String) || @prop.is_a?(Api::Type::Enum) -%>
-        var val string
+		err := runner.EvaluateExpr(attribute.Expr, func (val string) error {
 <% end -%>
 <% if @prop.is_a?(Api::Type::Integer) -%>
-		var val int
+		err := runner.EvaluateExpr(attribute.Expr, func (val int) error {
 <% end -%>
-		err := runner.EvaluateExpr(attribute.Expr, &val, nil)
-
 <% if @prop.is_a?(Api::Type::Enum) -%>
 <%
 	enum_values = @prop.values
 	enum_values.push "" unless @prop.required
 -%>
-		validateFunc := validation.StringInSlice([]string{"<%= enum_values.join '","' -%>"}, false)
+			validateFunc := validation.StringInSlice([]string{"<%= enum_values.join '","' -%>"}, false)
 <% end -%>
 <% if @prop.validation&.regex -%>
-		validateFunc := validateRegexp(`<%= @prop.validation.regex -%>`)
+			validateFunc := validateRegexp(`<%= @prop.validation.regex -%>`)
 <% end -%>
 <% if @prop.validation&.function -%>
-		validateFunc := <%= @prop.validation.function -%>
+			validateFunc := <%= @prop.validation.function -%>
 <% end -%>
 
-		err = runner.EnsureNoError(err, func() error {
 			_, errors := validateFunc(val, r.attributeName)
 			for _, err := range errors {
-				<% if @prop.sensitive -%>
-				runner.EmitIssue(r, fmt.Sprintf(`"%s" is invalid value`, r.attributeName), attribute.Expr.Range())
-				<% else -%>
-				runner.EmitIssue(r, err.Error(), attribute.Expr.Range())
-				<% end -%>
+<% if @prop.sensitive -%>
+				if err := runner.EmitIssue(r, fmt.Sprintf(`"%s" is invalid value`, r.attributeName), attribute.Expr.Range()); err != nil {
+					return err
+				}
+<% else -%>
+				if err := runner.EmitIssue(r, err.Error(), attribute.Expr.Range()); err != nil {
+					return err
+				}
+<% end -%>
 			}
 			return nil
-		})
+		}, nil)
 		if err != nil {
 			return err
 		}
