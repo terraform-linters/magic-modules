@@ -80,7 +80,7 @@ func (w *ContainerOperationWaiter) QueryOp() (interface{}, error) {
 	default:
 		// default must be here to keep the previous case from blocking
 	}
-	err := retryTimeDuration(func() (opErr error) {
+	err := RetryTimeDuration(func() (opErr error) {
 		opGetCall := w.Service.Projects.Locations.Operations.Get(name)
 		if w.UserProjectOverride {
 			opGetCall.Header().Add("X-Goog-User-Project", w.Project)
@@ -107,7 +107,7 @@ func (w *ContainerOperationWaiter) TargetStates() []string {
 	return []string{"DONE"}
 }
 
-func containerOperationWait(config *Config, op *container.Operation, project, location, activity, userAgent string, timeout time.Duration) error {
+func ContainerOperationWait(config *Config, op *container.Operation, project, location, activity, userAgent string, timeout time.Duration) error {
 	w := &ContainerOperationWaiter{
 		Service:             config.NewContainerClient(userAgent),
 		Context:             config.context,

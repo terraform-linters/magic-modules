@@ -46,7 +46,7 @@ func TestAccHealthcareDicomStoreIdParsing(t *testing.T) {
 	}
 
 	for tn, tc := range cases {
-		dicomStoreId, err := parseHealthcareDicomStoreId(tc.ImportId, tc.Config)
+		dicomStoreId, err := ParseHealthcareDicomStoreId(tc.ImportId, tc.Config)
 
 		if tc.ExpectedError && err == nil {
 			t.Fatalf("bad: %s, expected an error", tn)
@@ -59,12 +59,12 @@ func TestAccHealthcareDicomStoreIdParsing(t *testing.T) {
 			t.Fatalf("bad: %s, err: %#v", tn, err)
 		}
 
-		if dicomStoreId.terraformId() != tc.ExpectedTerraformId {
-			t.Fatalf("bad: %s, expected Terraform ID to be `%s` but is `%s`", tn, tc.ExpectedTerraformId, dicomStoreId.terraformId())
+		if dicomStoreId.TerraformId() != tc.ExpectedTerraformId {
+			t.Fatalf("bad: %s, expected Terraform ID to be `%s` but is `%s`", tn, tc.ExpectedTerraformId, dicomStoreId.TerraformId())
 		}
 
-		if dicomStoreId.dicomStoreId() != tc.ExpectedDicomStoreId {
-			t.Fatalf("bad: %s, expected DicomStore ID to be `%s` but is `%s`", tn, tc.ExpectedDicomStoreId, dicomStoreId.dicomStoreId())
+		if dicomStoreId.DicomStoreId() != tc.ExpectedDicomStoreId {
+			t.Fatalf("bad: %s, expected DicomStore ID to be `%s` but is `%s`", tn, tc.ExpectedDicomStoreId, dicomStoreId.DicomStoreId())
 		}
 	}
 }
@@ -72,15 +72,15 @@ func TestAccHealthcareDicomStoreIdParsing(t *testing.T) {
 func TestAccHealthcareDicomStore_basic(t *testing.T) {
 	t.Parallel()
 
-	datasetName := fmt.Sprintf("tf-test-dataset-%s", randString(t, 10))
-	dicomStoreName := fmt.Sprintf("tf-test-dicom-store-%s", randString(t, 10))
-	pubsubTopic := fmt.Sprintf("tf-test-topic-%s", randString(t, 10))
+	datasetName := fmt.Sprintf("tf-test-dataset-%s", RandString(t, 10))
+	dicomStoreName := fmt.Sprintf("tf-test-dicom-store-%s", RandString(t, 10))
+	pubsubTopic := fmt.Sprintf("tf-test-topic-%s", RandString(t, 10))
 	resourceName := "google_healthcare_dicom_store.default"
 
-	vcrTest(t, resource.TestCase{
-		PreCheck:     func() { testAccPreCheck(t) },
-		Providers:    testAccProviders,
-		CheckDestroy: testAccCheckHealthcareDicomStoreDestroyProducer(t),
+	VcrTest(t, resource.TestCase{
+		PreCheck:                 func() { AccTestPreCheck(t) },
+		ProtoV5ProviderFactories: ProtoV5ProviderFactories(t),
+		CheckDestroy:             testAccCheckHealthcareDicomStoreDestroyProducer(t),
 		Steps: []resource.TestStep{
 			{
 				Config: testGoogleHealthcareDicomStore_basic(dicomStoreName, datasetName),
@@ -162,14 +162,14 @@ func testAccCheckGoogleHealthcareDicomStoreUpdate(t *testing.T, pubsubTopic stri
 			}
 			foundResource = true
 
-			config := googleProviderConfig(t)
+			config := GoogleProviderConfig(t)
 
 			gcpResourceUri, err := replaceVarsForTest(config, rs, "{{dataset}}/dicomStores/{{name}}")
 			if err != nil {
 				return err
 			}
 
-			response, err := config.NewHealthcareClient(config.userAgent).Projects.Locations.Datasets.DicomStores.Get(gcpResourceUri).Do()
+			response, err := config.NewHealthcareClient(config.UserAgent).Projects.Locations.Datasets.DicomStores.Get(gcpResourceUri).Do()
 			if err != nil {
 				return fmt.Errorf("Unexpected failure while verifying 'updated' dataset: %s", err)
 			}

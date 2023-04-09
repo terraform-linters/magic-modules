@@ -6,9 +6,9 @@ import (
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 )
 
-func dataSourceGoogleIapClient() *schema.Resource {
+func DataSourceGoogleIapClient() *schema.Resource {
 
-	dsSchema := datasourceSchemaFromResourceSchema(resourceIapClient().Schema)
+	dsSchema := datasourceSchemaFromResourceSchema(ResourceIapClient().Schema)
 	addRequiredFieldsToSchema(dsSchema, "brand", "client_id")
 
 	return &schema.Resource{
@@ -20,7 +20,7 @@ func dataSourceGoogleIapClient() *schema.Resource {
 func dataSourceGoogleIapClientRead(d *schema.ResourceData, meta interface{}) error {
 	config := meta.(*Config)
 
-	id, err := replaceVars(d, config, "{{brand}}/identityAwareProxyClients/{{client_id}}")
+	id, err := ReplaceVars(d, config, "{{brand}}/identityAwareProxyClients/{{client_id}}")
 	if err != nil {
 		return fmt.Errorf("Error constructing id: %s", err)
 	}

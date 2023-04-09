@@ -226,7 +226,7 @@ func resource<%= resource_name -%>PatchDeleteEncoder(d *schema.ResourceData, met
 -%>
 func resource<%= resource_name -%>ListForPatch(d *schema.ResourceData, meta interface{}) ([]interface{}, error) {
   config := meta.(*Config)
-  url, err := replaceVars(d, config, "<%= "{{#{object.__product.name}BasePath}}#{object.self_link_uri}" -%>")
+  url, err := ReplaceVars(d, config, "<%= "{{#{object.__product.name}BasePath}}#{object.self_link_uri}" -%>")
   if err != nil {
       return nil, err
   }
@@ -237,12 +237,12 @@ func resource<%= resource_name -%>ListForPatch(d *schema.ResourceData, meta inte
   }
   <% end -%>
 
-  userAgent, err := generateUserAgentString(d, config.userAgent)
+  userAgent, err := generateUserAgentString(d, config.UserAgent)
   if err != nil {
     return nil, err
   }
 
-  res, err := sendRequest(config, "<%= object.read_verb.to_s.upcase -%>", <% if has_project %>project<% else %>""<% end %>, url, userAgent, nil<%= object.error_retry_predicates ? ", " + object.error_retry_predicates.join(',') : "" -%>)
+  res, err := SendRequest(config, "<%= object.read_verb.to_s.upcase -%>", <% if has_project %>project<% else %>""<% end %>, url, userAgent, nil<%= object.error_retry_predicates ? ", " + object.error_retry_predicates.join(',') : "" -%>)
   if err != nil {
     return nil, err
   }

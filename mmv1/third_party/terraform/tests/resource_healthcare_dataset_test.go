@@ -45,7 +45,7 @@ func TestAccHealthcareDatasetIdParsing(t *testing.T) {
 	}
 
 	for tn, tc := range cases {
-		datasetId, err := parseHealthcareDatasetId(tc.ImportId, tc.Config)
+		datasetId, err := ParseHealthcareDatasetId(tc.ImportId, tc.Config)
 
 		if tc.ExpectedError && err == nil {
 			t.Fatalf("bad: %s, expected an error", tn)
@@ -58,12 +58,12 @@ func TestAccHealthcareDatasetIdParsing(t *testing.T) {
 			t.Fatalf("bad: %s, err: %#v", tn, err)
 		}
 
-		if datasetId.terraformId() != tc.ExpectedTerraformId {
-			t.Fatalf("bad: %s, expected Terraform ID to be `%s` but is `%s`", tn, tc.ExpectedTerraformId, datasetId.terraformId())
+		if datasetId.TerraformId() != tc.ExpectedTerraformId {
+			t.Fatalf("bad: %s, expected Terraform ID to be `%s` but is `%s`", tn, tc.ExpectedTerraformId, datasetId.TerraformId())
 		}
 
-		if datasetId.datasetId() != tc.ExpectedDatasetId {
-			t.Fatalf("bad: %s, expected Dataset ID to be `%s` but is `%s`", tn, tc.ExpectedDatasetId, datasetId.datasetId())
+		if datasetId.DatasetId() != tc.ExpectedDatasetId {
+			t.Fatalf("bad: %s, expected Dataset ID to be `%s` but is `%s`", tn, tc.ExpectedDatasetId, datasetId.DatasetId())
 		}
 	}
 }
@@ -72,14 +72,14 @@ func TestAccHealthcareDataset_basic(t *testing.T) {
 	t.Parallel()
 
 	location := "us-central1"
-	datasetName := fmt.Sprintf("tf-test-%s", randString(t, 10))
+	datasetName := fmt.Sprintf("tf-test-%s", RandString(t, 10))
 	timeZone := "America/New_York"
 	resourceName := "google_healthcare_dataset.dataset"
 
-	vcrTest(t, resource.TestCase{
-		PreCheck:     func() { testAccPreCheck(t) },
-		Providers:    testAccProviders,
-		CheckDestroy: testAccCheckHealthcareDatasetDestroyProducer(t),
+	VcrTest(t, resource.TestCase{
+		PreCheck:                 func() { AccTestPreCheck(t) },
+		ProtoV5ProviderFactories: ProtoV5ProviderFactories(t),
+		CheckDestroy:             testAccCheckHealthcareDatasetDestroyProducer(t),
 		Steps: []resource.TestStep{
 			{
 				Config: testGoogleHealthcareDataset_basic(datasetName, location),
@@ -111,14 +111,14 @@ func testAccCheckGoogleHealthcareDatasetUpdate(t *testing.T, timeZone string) re
 				continue
 			}
 
-			config := googleProviderConfig(t)
+			config := GoogleProviderConfig(t)
 
 			gcpResourceUri, err := replaceVarsForTest(config, rs, "projects/{{project}}/locations/{{location}}/datasets/{{name}}")
 			if err != nil {
 				return err
 			}
 
-			response, err := config.NewHealthcareClient(config.userAgent).Projects.Locations.Datasets.Get(gcpResourceUri).Do()
+			response, err := config.NewHealthcareClient(config.UserAgent).Projects.Locations.Datasets.Get(gcpResourceUri).Do()
 			if err != nil {
 				return fmt.Errorf("Unexpected failure while verifying 'updated' dataset: %s", err)
 			}

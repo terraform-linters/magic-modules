@@ -17,7 +17,7 @@ func iamMemberCaseDiffSuppress(k, old, new string, d *schema.ResourceData) bool 
 	if isCaseSensitive {
 		return old == new
 	}
-	return caseDiffSuppress(k, old, new, d)
+	return CaseDiffSuppress(k, old, new, d)
 }
 
 func validateIAMMember(i interface{}, k string) ([]string, []error) {
@@ -216,8 +216,8 @@ func resourceIamMemberCreate(newUpdaterFunc newResourceIamUpdaterFunc, enableBat
 		memberBind := getResourceIamMember(d)
 		modifyF := func(ep *cloudresourcemanager.Policy) error {
 			// Merge the bindings together
-			ep.Bindings = mergeBindings(append(ep.Bindings, memberBind))
-			ep.Version = iamPolicyVersion
+			ep.Bindings = MergeBindings(append(ep.Bindings, memberBind))
+			ep.Version = IamPolicyVersion
 			return nil
 		}
 		if enableBatching {

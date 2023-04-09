@@ -360,7 +360,7 @@ func resourceBigQueryTableSchemaCustomizeDiff(_ context.Context, d *schema.Resou
 	return resourceBigQueryTableSchemaCustomizeDiffFunc(d)
 }
 
-func resourceBigQueryTable() *schema.Resource {
+func ResourceBigQueryTable() *schema.Resource {
 	return &schema.Resource{
 		Create: resourceBigQueryTableCreate,
 		Read:   resourceBigQueryTableRead,
@@ -1073,7 +1073,7 @@ func resourceTable(d *schema.ResourceData, meta interface{}) (*bigquery.Table, e
 
 func resourceBigQueryTableCreate(d *schema.ResourceData, meta interface{}) error {
 	config := meta.(*Config)
-	userAgent, err := generateUserAgentString(d, config.userAgent)
+	userAgent, err := generateUserAgentString(d, config.UserAgent)
 	if err != nil {
 		return err
 	}
@@ -1130,7 +1130,7 @@ func resourceBigQueryTableCreate(d *schema.ResourceData, meta interface{}) error
 
 func resourceBigQueryTableRead(d *schema.ResourceData, meta interface{}) error {
 	config := meta.(*Config)
-	userAgent, err := generateUserAgentString(d, config.userAgent)
+	userAgent, err := generateUserAgentString(d, config.UserAgent)
 	if err != nil {
 		return err
 	}
@@ -1281,7 +1281,7 @@ func resourceBigQueryTableRead(d *schema.ResourceData, meta interface{}) error {
 
 func resourceBigQueryTableUpdate(d *schema.ResourceData, meta interface{}) error {
 	config := meta.(*Config)
-	userAgent, err := generateUserAgentString(d, config.userAgent)
+	userAgent, err := generateUserAgentString(d, config.UserAgent)
 	if err != nil {
 		return err
 	}
@@ -1313,7 +1313,7 @@ func resourceBigQueryTableDelete(d *schema.ResourceData, meta interface{}) error
 		return fmt.Errorf("cannot destroy instance without setting deletion_protection=false and running `terraform apply`")
 	}
 	config := meta.(*Config)
-	userAgent, err := generateUserAgentString(d, config.userAgent)
+	userAgent, err := generateUserAgentString(d, config.UserAgent)
 	if err != nil {
 		return err
 	}
@@ -1781,7 +1781,7 @@ func flattenMaterializedView(mvd *bigquery.MaterializedViewDefinition) []map[str
 
 func resourceBigQueryTableImport(d *schema.ResourceData, meta interface{}) ([]*schema.ResourceData, error) {
 	config := meta.(*Config)
-	if err := parseImportId([]string{
+	if err := ParseImportId([]string{
 		"projects/(?P<project>[^/]+)/datasets/(?P<dataset_id>[^/]+)/tables/(?P<table_id>[^/]+)",
 		"(?P<project>[^/]+)/(?P<dataset_id>[^/]+)/(?P<table_id>[^/]+)",
 		"(?P<dataset_id>[^/]+)/(?P<table_id>[^/]+)",
@@ -1795,7 +1795,7 @@ func resourceBigQueryTableImport(d *schema.ResourceData, meta interface{}) ([]*s
 	}
 
 	// Replace import id for the resource id
-	id, err := replaceVars(d, config, "projects/{{project}}/datasets/{{dataset_id}}/tables/{{table_id}}")
+	id, err := ReplaceVars(d, config, "projects/{{project}}/datasets/{{dataset_id}}/tables/{{table_id}}")
 	if err != nil {
 		return nil, fmt.Errorf("Error constructing id: %s", err)
 	}

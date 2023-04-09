@@ -26,33 +26,33 @@ type HealthcareDicomStoreIamUpdater struct {
 
 func NewHealthcareDicomStoreIamUpdater(d TerraformResourceData, config *Config) (ResourceIamUpdater, error) {
 	dicomStore := d.Get("dicom_store_id").(string)
-	dicomStoreId, err := parseHealthcareDicomStoreId(dicomStore, config)
+	dicomStoreId, err := ParseHealthcareDicomStoreId(dicomStore, config)
 
 	if err != nil {
 		return nil, errwrap.Wrapf(fmt.Sprintf("Error parsing resource ID for %s: {{err}}", dicomStore), err)
 	}
 
 	return &HealthcareDicomStoreIamUpdater{
-		resourceId: dicomStoreId.dicomStoreId(),
+		resourceId: dicomStoreId.DicomStoreId(),
 		d:          d,
 		Config:     config,
 	}, nil
 }
 
 func DicomStoreIdParseFunc(d *schema.ResourceData, config *Config) error {
-	dicomStoreId, err := parseHealthcareDicomStoreId(d.Id(), config)
+	dicomStoreId, err := ParseHealthcareDicomStoreId(d.Id(), config)
 	if err != nil {
 		return err
 	}
-	if err := d.Set("dicom_store_id", dicomStoreId.dicomStoreId()); err != nil {
+	if err := d.Set("dicom_store_id", dicomStoreId.DicomStoreId()); err != nil {
 		return fmt.Errorf("Error setting dicom_store_id: %s", err)
 	}
-	d.SetId(dicomStoreId.dicomStoreId())
+	d.SetId(dicomStoreId.DicomStoreId())
 	return nil
 }
 
 func (u *HealthcareDicomStoreIamUpdater) GetResourceIamPolicy() (*cloudresourcemanager.Policy, error) {
-	userAgent, err := generateUserAgentString(u.d, u.Config.userAgent)
+	userAgent, err := generateUserAgentString(u.d, u.Config.UserAgent)
 	if err != nil {
 		return nil, err
 	}
@@ -79,7 +79,7 @@ func (u *HealthcareDicomStoreIamUpdater) SetResourceIamPolicy(policy *cloudresou
 		return errwrap.Wrapf(fmt.Sprintf("Invalid IAM policy for %s: {{err}}", u.DescribeResource()), err)
 	}
 
-	userAgent, err := generateUserAgentString(u.d, u.Config.userAgent)
+	userAgent, err := generateUserAgentString(u.d, u.Config.UserAgent)
 	if err != nil {
 		return err
 	}

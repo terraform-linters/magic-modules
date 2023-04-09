@@ -9,7 +9,7 @@ import (
 	"google.golang.org/api/iam/v1"
 )
 
-func resourceGoogleProjectIamCustomRole() *schema.Resource {
+func ResourceGoogleProjectIamCustomRole() *schema.Resource {
 	return &schema.Resource{
 		Create: resourceGoogleProjectIamCustomRoleCreate,
 		Read:   resourceGoogleProjectIamCustomRoleRead,
@@ -53,7 +53,7 @@ func resourceGoogleProjectIamCustomRole() *schema.Resource {
 				Default:          "GA",
 				Description:      `The current launch stage of the role. Defaults to GA.`,
 				ValidateFunc:     validation.StringInSlice([]string{"ALPHA", "BETA", "GA", "DEPRECATED", "DISABLED", "EAP"}, false),
-				DiffSuppressFunc: emptyOrDefaultStringSuppress("ALPHA"),
+				DiffSuppressFunc: EmptyOrDefaultStringSuppress("ALPHA"),
 			},
 			"description": {
 				Type:        schema.TypeString,
@@ -77,7 +77,7 @@ func resourceGoogleProjectIamCustomRole() *schema.Resource {
 
 func resourceGoogleProjectIamCustomRoleCreate(d *schema.ResourceData, meta interface{}) error {
 	config := meta.(*Config)
-	userAgent, err := generateUserAgentString(d, config.userAgent)
+	userAgent, err := generateUserAgentString(d, config.UserAgent)
 	if err != nil {
 		return err
 	}
@@ -133,7 +133,7 @@ func extractProjectFromProjectIamCustomRoleID(id string) string {
 
 func resourceGoogleProjectIamCustomRoleRead(d *schema.ResourceData, meta interface{}) error {
 	config := meta.(*Config)
-	userAgent, err := generateUserAgentString(d, config.userAgent)
+	userAgent, err := generateUserAgentString(d, config.UserAgent)
 	if err != nil {
 		return err
 	}
@@ -175,7 +175,7 @@ func resourceGoogleProjectIamCustomRoleRead(d *schema.ResourceData, meta interfa
 
 func resourceGoogleProjectIamCustomRoleUpdate(d *schema.ResourceData, meta interface{}) error {
 	config := meta.(*Config)
-	userAgent, err := generateUserAgentString(d, config.userAgent)
+	userAgent, err := generateUserAgentString(d, config.UserAgent)
 	if err != nil {
 		return err
 	}
@@ -214,7 +214,7 @@ func resourceGoogleProjectIamCustomRoleUpdate(d *schema.ResourceData, meta inter
 
 func resourceGoogleProjectIamCustomRoleDelete(d *schema.ResourceData, meta interface{}) error {
 	config := meta.(*Config)
-	userAgent, err := generateUserAgentString(d, config.userAgent)
+	userAgent, err := generateUserAgentString(d, config.UserAgent)
 	if err != nil {
 		return err
 	}
@@ -229,7 +229,7 @@ func resourceGoogleProjectIamCustomRoleDelete(d *schema.ResourceData, meta inter
 
 func resourceGoogleProjectIamCustomRoleImport(d *schema.ResourceData, meta interface{}) ([]*schema.ResourceData, error) {
 	config := meta.(*Config)
-	if err := parseImportId([]string{
+	if err := ParseImportId([]string{
 		"projects/(?P<project>[^/]+)/roles/(?P<role_id>[^/]+)",
 		"(?P<project>[^/]+)/(?P<role_id>[^/]+)",
 		"(?P<role_id>[^/]+)",
@@ -238,7 +238,7 @@ func resourceGoogleProjectIamCustomRoleImport(d *schema.ResourceData, meta inter
 	}
 
 	// Replace import id for the resource id
-	id, err := replaceVars(d, config, "projects/{{project}}/roles/{{role_id}}")
+	id, err := ReplaceVars(d, config, "projects/{{project}}/roles/{{role_id}}")
 	if err != nil {
 		return nil, fmt.Errorf("Error constructing id: %s", err)
 	}

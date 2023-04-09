@@ -4,8 +4,8 @@ import (
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 )
 
-func dataSourceGoogleKmsKeyRing() *schema.Resource {
-	dsSchema := datasourceSchemaFromResourceSchema(resourceKMSKeyRing().Schema)
+func DataSourceGoogleKmsKeyRing() *schema.Resource {
+	dsSchema := datasourceSchemaFromResourceSchema(ResourceKMSKeyRing().Schema)
 	addRequiredFieldsToSchema(dsSchema, "name")
 	addRequiredFieldsToSchema(dsSchema, "location")
 	addOptionalFieldsToSchema(dsSchema, "project")
@@ -24,12 +24,12 @@ func dataSourceGoogleKmsKeyRingRead(d *schema.ResourceData, meta interface{}) er
 		return err
 	}
 
-	keyRingId := kmsKeyRingId{
+	keyRingId := KmsKeyRingId{
 		Name:     d.Get("name").(string),
 		Location: d.Get("location").(string),
 		Project:  project,
 	}
-	d.SetId(keyRingId.keyRingId())
+	d.SetId(keyRingId.KeyRingId())
 
 	return resourceKMSKeyRingRead(d, meta)
 }

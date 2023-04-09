@@ -8,7 +8,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 )
 
-func dataSourceTpuTensorflowVersions() *schema.Resource {
+func DataSourceTpuTensorflowVersions() *schema.Resource {
 	return &schema.Resource{
 		Read: dataSourceTpuTensorFlowVersionsRead,
 		Schema: map[string]*schema.Schema{
@@ -33,7 +33,7 @@ func dataSourceTpuTensorflowVersions() *schema.Resource {
 
 func dataSourceTpuTensorFlowVersionsRead(d *schema.ResourceData, meta interface{}) error {
 	config := meta.(*Config)
-	userAgent, err := generateUserAgentString(d, config.userAgent)
+	userAgent, err := generateUserAgentString(d, config.UserAgent)
 	if err != nil {
 		return err
 	}
@@ -48,7 +48,7 @@ func dataSourceTpuTensorFlowVersionsRead(d *schema.ResourceData, meta interface{
 		return err
 	}
 
-	url, err := replaceVars(d, config, "{{TPUBasePath}}projects/{{project}}/locations/{{zone}}/tensorflowVersions")
+	url, err := ReplaceVars(d, config, "{{TPUBasePath}}projects/{{project}}/locations/{{zone}}/tensorflowVersions")
 	if err != nil {
 		return err
 	}

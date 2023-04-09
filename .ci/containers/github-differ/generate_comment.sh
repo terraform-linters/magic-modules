@@ -43,6 +43,11 @@ fi
 git checkout origin/$NEW_BRANCH
 popd
 
+if ! git diff --exit-code origin/main tools; then
+    ## Run unit tests for breaking change and missing test detector.
+    /test_tools.sh $MM_LOCAL_PATH $TPG_LOCAL_PATH $COMMIT_SHA $BUILD_ID $BUILD_STEP $PROJECT_ID
+fi
+
 ## Breaking change setup and execution
 TPG_LOCAL_PATH_OLD="${TPG_LOCAL_PATH}old"
 mkdir -p $TPG_LOCAL_PATH_OLD
@@ -96,6 +101,20 @@ if [ $retVal -ne 0 ]; then
     export TPGB_BREAKING=""
 fi
 BREAKINGCHANGES="$(/compare_breaking_changes.sh)"
+set -e
+popd
+
+## Missing test setup and execution
+set +e
+pushd $MM_LOCAL_PATH/tools/missing-test-detector
+go mod edit -replace google/provider/new=$(realpath $TPGB_LOCAL_PATH)
+go mod edit -replace google/provider/old=$(realpath $TPGB_LOCAL_PATH_OLD)
+go mod tidy
+export MISSINGTESTS="$(go run . -provider-dir=$TPGB_LOCAL_PATH/google-beta)"
+retVal=$?
+if [ $retVal -ne 0 ]; then
+    export MISSINGTESTS=""
+fi
 set -e
 popd
 
@@ -160,6 +179,9 @@ if [ -z "$DIFFS" ]; then
   MESSAGE="${MESSAGE}## Diff report ${NEWLINE}Your PR hasn't generated any diffs, but I'll let you know if a future commit does."
 else
   MESSAGE="${MESSAGE}## Diff report ${NEWLINE}Your PR generated some diffs in downstreams - here they are.${NEWLINE}${DIFFS}"
+  if [ -n "$MISSINGTESTS" ]; then
+    MESSAGE="${MESSAGE}${NEWLINE}${MISSINGTESTS}${NEWLINE}"
+  fi
 fi
 
 

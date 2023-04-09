@@ -6,9 +6,9 @@ import (
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 )
 
-func dataSourceSecretManagerSecret() *schema.Resource {
+func DataSourceSecretManagerSecret() *schema.Resource {
 
-	dsSchema := datasourceSchemaFromResourceSchema(resourceSecretManagerSecret().Schema)
+	dsSchema := datasourceSchemaFromResourceSchema(ResourceSecretManagerSecret().Schema)
 	addRequiredFieldsToSchema(dsSchema, "secret_id")
 	addOptionalFieldsToSchema(dsSchema, "project")
 
@@ -19,7 +19,7 @@ func dataSourceSecretManagerSecret() *schema.Resource {
 }
 
 func dataSourceSecretManagerSecretRead(d *schema.ResourceData, meta interface{}) error {
-	id, err := replaceVars(d, meta.(*Config), "projects/{{project}}/secrets/{{secret_id}}")
+	id, err := ReplaceVars(d, meta.(*Config), "projects/{{project}}/secrets/{{secret_id}}")
 	if err != nil {
 		return fmt.Errorf("Error constructing id: %s", err)
 	}

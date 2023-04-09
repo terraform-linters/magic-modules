@@ -39,7 +39,7 @@ func sendFrameworkRequestWithTimeout(p *frameworkProvider, method, project, rawu
 	}
 
 	var res *http.Response
-	err := retryTimeDuration(
+	err := RetryTimeDuration(
 		func() error {
 			var buf bytes.Buffer
 			if body != nil {
@@ -49,7 +49,7 @@ func sendFrameworkRequestWithTimeout(p *frameworkProvider, method, project, rawu
 				}
 			}
 
-			u, err := addQueryParams(rawurl, map[string]string{"alt": "json"})
+			u, err := AddQueryParams(rawurl, map[string]string{"alt": "json"})
 			if err != nil {
 				return err
 			}

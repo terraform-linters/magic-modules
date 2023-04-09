@@ -12,12 +12,12 @@ func TestAccWorkflowsWorkflow_Update(t *testing.T) {
 	// Custom test written to test diffs
 	t.Parallel()
 
-	workflowName := fmt.Sprintf("tf-test-acc-workflow-%d", randInt(t))
+	workflowName := fmt.Sprintf("tf-test-acc-workflow-%d", RandInt(t))
 
-	vcrTest(t, resource.TestCase{
-		PreCheck:     func() { testAccPreCheck(t) },
-		Providers:    testAccProviders,
-		CheckDestroy: testAccCheckWorkflowsWorkflowDestroyProducer(t),
+	VcrTest(t, resource.TestCase{
+		PreCheck:                 func() { AccTestPreCheck(t) },
+		ProtoV5ProviderFactories: ProtoV5ProviderFactories(t),
+		CheckDestroy:             testAccCheckWorkflowsWorkflowDestroyProducer(t),
 		Steps: []resource.TestStep{
 			{
 				Config: testAccWorkflowsWorkflow_Update(workflowName),
@@ -132,7 +132,7 @@ func TestWorkflowsWorkflowStateUpgradeV0(t *testing.T) {
 	}
 	for tn, tc := range cases {
 		t.Run(tn, func(t *testing.T) {
-			actual, err := resourceWorkflowsWorkflowUpgradeV0(context.Background(), tc.Attributes, tc.Meta)
+			actual, err := ResourceWorkflowsWorkflowUpgradeV0(context.Background(), tc.Attributes, tc.Meta)
 
 			if err != nil {
 				t.Error(err)

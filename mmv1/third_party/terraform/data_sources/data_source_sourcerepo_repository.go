@@ -6,9 +6,9 @@ import (
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 )
 
-func dataSourceGoogleSourceRepoRepository() *schema.Resource {
+func DataSourceGoogleSourceRepoRepository() *schema.Resource {
 
-	dsSchema := datasourceSchemaFromResourceSchema(resourceSourceRepoRepository().Schema)
+	dsSchema := datasourceSchemaFromResourceSchema(ResourceSourceRepoRepository().Schema)
 
 	addRequiredFieldsToSchema(dsSchema, "name")
 	addOptionalFieldsToSchema(dsSchema, "project")
@@ -23,7 +23,7 @@ func dataSourceGoogleSourceRepoRepositoryRead(d *schema.ResourceData, meta inter
 
 	config := meta.(*Config)
 
-	id, err := replaceVars(d, config, "projects/{{project}}/repos/{{name}}")
+	id, err := ReplaceVars(d, config, "projects/{{project}}/repos/{{name}}")
 	if err != nil {
 		return fmt.Errorf("Error constructing id: %s", err)
 	}
