@@ -5,6 +5,9 @@ import (
 	"strconv"
 	"testing"
 
+	"github.com/hashicorp/terraform-provider-google/google/acctest"
+	"github.com/hashicorp/terraform-provider-google/google/tpgresource"
+
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/terraform"
 )
@@ -12,9 +15,9 @@ import (
 func TestAccDataSourceGoogleIamTestablePermissions_basic(t *testing.T) {
 	t.Parallel()
 
-	project := GetTestProjectFromEnv()
+	project := acctest.GetTestProjectFromEnv()
 	VcrTest(t, resource.TestCase{
-		PreCheck:                 func() { AccTestPreCheck(t) },
+		PreCheck:                 func() { acctest.AccTestPreCheck(t) },
 		ProtoV5ProviderFactories: ProtoV5ProviderFactories(t),
 		Steps: []resource.TestStep{
 			{
@@ -131,7 +134,7 @@ func testAccCheckGoogleIamTestablePermissionsMeta(project string, n string, expe
 			for s := 0; s < len(expectedStages); s++ {
 				stageKey := "permissions." + strconv.Itoa(i) + ".stage"
 				supportKey := "permissions." + strconv.Itoa(i) + ".custom_support_level"
-				if stringInSlice(expectedStages, attrs[stageKey]) {
+				if tpgresource.StringInSlice(expectedStages, attrs[stageKey]) {
 					foundStageCounter -= 1
 				}
 				if attrs[supportKey] == expectedSupportLevel {

@@ -7,6 +7,7 @@ import (
 	"go/token"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 
@@ -204,7 +205,9 @@ func readConfigBasicLit(configBasicLit *ast.BasicLit) (Step, error) {
 		return nil, err
 	} else {
 		// Remove template variables because they interfere with hcl parsing.
-		configStr = strings.ReplaceAll(configStr, "%", "")
+		pattern := regexp.MustCompile("%{[^{}]*}")
+		// Replace with a value that can be parsed outside quotation marks.
+		configStr = pattern.ReplaceAllString(configStr, "true")
 		parser := hclparse.NewParser()
 		file, diagnostics := parser.ParseHCL([]byte(configStr), "config.hcl")
 		if diagnostics.HasErrors() {
@@ -277,11 +280,7 @@ func readHCLBlockBody(body hcl.Body, fileBytes []byte) (Resource, error) {
 		if existing, ok := m[block.Type]; ok {
 			// Merge the fields from the current block into the existing resource config.
 			if existingResource, ok := existing.(Resource); ok {
-				for k, v := range blockConfig {
-					if _, ok := existingResource[k]; !ok {
-						existingResource[k] = v
-					}
-				}
+				mergeResources(existingResource, blockConfig)
 			}
 		} else {
 			m[block.Type] = blockConfig
@@ -291,4 +290,19 @@ func readHCLBlockBody(body hcl.Body, fileBytes []byte) (Resource, error) {
 		return m, fmt.Errorf("errors reading hcl blocks: %v", errs)
 	}
 	return m, nil
+}
+
+// Perform a recursive one-way merge of b into a.
+func mergeResources(a, b Resource) {
+	for k, bv := range b {
+		if av, ok := a[k]; ok {
+			if avr, ok := av.(Resource); ok {
+				if bvr, ok := bv.(Resource); ok {
+					mergeResources(avr, bvr)
+				}
+			}
+		} else {
+			a[k] = bv
+		}
+	}
 }

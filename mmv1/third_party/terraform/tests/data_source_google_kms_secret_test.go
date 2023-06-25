@@ -8,16 +8,18 @@ import (
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/terraform"
+	"github.com/hashicorp/terraform-provider-google/google/acctest"
+	"github.com/hashicorp/terraform-provider-google/google/services/kms"
 	"google.golang.org/api/cloudkms/v1"
 )
 
 func TestAccKmsSecret_basic(t *testing.T) {
 	// Nested tests confuse VCR
-	SkipIfVcr(t)
+	acctest.SkipIfVcr(t)
 	t.Parallel()
 
-	projectOrg := GetTestOrgFromEnv(t)
-	projectBillingAccount := GetTestBillingAccountFromEnv(t)
+	projectOrg := acctest.GetTestOrgFromEnv(t)
+	projectBillingAccount := acctest.GetTestBillingAccountFromEnv(t)
 
 	projectId := "tf-test-" + RandString(t, 10)
 	keyRingName := fmt.Sprintf("tf-test-%s", RandString(t, 10))
@@ -28,7 +30,7 @@ func TestAccKmsSecret_basic(t *testing.T) {
 
 	// The first test creates resources needed to encrypt plaintext and produce ciphertext
 	VcrTest(t, resource.TestCase{
-		PreCheck:                 func() { AccTestPreCheck(t) },
+		PreCheck:                 func() { acctest.AccTestPreCheck(t) },
 		ProtoV5ProviderFactories: ProtoV5ProviderFactories(t),
 		Steps: []resource.TestStep{
 			{
@@ -42,7 +44,7 @@ func TestAccKmsSecret_basic(t *testing.T) {
 
 					// The second test asserts that the data source has the correct plaintext, given the created ciphertext
 					VcrTest(t, resource.TestCase{
-						PreCheck:                 func() { AccTestPreCheck(t) },
+						PreCheck:                 func() { acctest.AccTestPreCheck(t) },
 						ProtoV5ProviderFactories: ProtoV5ProviderFactories(t),
 						Steps: []resource.TestStep{
 							{
@@ -67,7 +69,7 @@ func TestAccKmsSecret_basic(t *testing.T) {
 
 					// The second test asserts that the data source has the correct plaintext, given the created ciphertext
 					VcrTest(t, resource.TestCase{
-						PreCheck:                 func() { AccTestPreCheck(t) },
+						PreCheck:                 func() { acctest.AccTestPreCheck(t) },
 						ProtoV5ProviderFactories: ProtoV5ProviderFactories(t),
 						Steps: []resource.TestStep{
 							{
@@ -84,7 +86,7 @@ func TestAccKmsSecret_basic(t *testing.T) {
 	})
 }
 
-func testAccEncryptSecretDataWithCryptoKey(t *testing.T, s *terraform.State, cryptoKeyResourceName, plaintext, aad string) (string, *KmsCryptoKeyId, error) {
+func testAccEncryptSecretDataWithCryptoKey(t *testing.T, s *terraform.State, cryptoKeyResourceName, plaintext, aad string) (string, *kms.KmsCryptoKeyId, error) {
 	config := GoogleProviderConfig(t)
 
 	rs, ok := s.RootModule().Resources[cryptoKeyResourceName]
@@ -92,7 +94,7 @@ func testAccEncryptSecretDataWithCryptoKey(t *testing.T, s *terraform.State, cry
 		return "", nil, fmt.Errorf("Resource not found: %s", cryptoKeyResourceName)
 	}
 
-	cryptoKeyId, err := ParseKmsCryptoKeyId(rs.Primary.Attributes["id"], config)
+	cryptoKeyId, err := kms.ParseKmsCryptoKeyId(rs.Primary.Attributes["id"], config)
 
 	if err != nil {
 		return "", nil, err

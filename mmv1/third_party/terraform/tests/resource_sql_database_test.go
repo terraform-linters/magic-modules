@@ -6,43 +6,10 @@ import (
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/terraform"
+	"github.com/hashicorp/terraform-provider-google/google/acctest"
 
 	sqladmin "google.golang.org/api/sqladmin/v1beta4"
 )
-
-func TestCaseDiffDashSuppress(t *testing.T) {
-	cases := map[string]struct {
-		Old, New           string
-		ExpectDiffSuppress bool
-	}{
-		"PD_HDD": {
-			Old:                "PD_HDD",
-			New:                "pd-hdd",
-			ExpectDiffSuppress: true,
-		},
-		"PD_SSD": {
-			Old:                "PD_SSD",
-			New:                "pd-ssd",
-			ExpectDiffSuppress: true,
-		},
-		"pd-hdd": {
-			Old:                "pd-hdd",
-			New:                "PD_HDD",
-			ExpectDiffSuppress: false,
-		},
-		"pd-ssd": {
-			Old:                "pd-ssd",
-			New:                "PD_SSD",
-			ExpectDiffSuppress: false,
-		},
-	}
-
-	for tn, tc := range cases {
-		if caseDiffDashSuppress(tn, tc.Old, tc.New, nil) != tc.ExpectDiffSuppress {
-			t.Errorf("bad: %s, %q => %q expect DiffSuppress to return %t", tn, tc.Old, tc.New, tc.ExpectDiffSuppress)
-		}
-	}
-}
 
 func TestAccSqlDatabase_basic(t *testing.T) {
 	t.Parallel()
@@ -54,7 +21,7 @@ func TestAccSqlDatabase_basic(t *testing.T) {
 	dbName := fmt.Sprintf("tf-test-%d", RandInt(t))
 
 	VcrTest(t, resource.TestCase{
-		PreCheck:                 func() { AccTestPreCheck(t) },
+		PreCheck:                 func() { acctest.AccTestPreCheck(t) },
 		ProtoV5ProviderFactories: ProtoV5ProviderFactories(t),
 		CheckDestroy:             testAccSqlDatabaseDestroyProducer(t),
 		Steps: []resource.TestStep{
@@ -85,14 +52,14 @@ func TestAccSqlDatabase_basic(t *testing.T) {
 			},
 			{
 				ResourceName:            resourceName,
-				ImportStateId:           fmt.Sprintf("%s/%s/%s", GetTestProjectFromEnv(), instanceName, dbName),
+				ImportStateId:           fmt.Sprintf("%s/%s/%s", acctest.GetTestProjectFromEnv(), instanceName, dbName),
 				ImportState:             true,
 				ImportStateVerify:       true,
 				ImportStateVerifyIgnore: []string{"deletion_protection"},
 			},
 			{
 				ResourceName:            resourceName,
-				ImportStateId:           fmt.Sprintf("projects/%s/instances/%s/databases/%s", GetTestProjectFromEnv(), instanceName, dbName),
+				ImportStateId:           fmt.Sprintf("projects/%s/instances/%s/databases/%s", acctest.GetTestProjectFromEnv(), instanceName, dbName),
 				ImportState:             true,
 				ImportStateVerify:       true,
 				ImportStateVerifyIgnore: []string{"deletion_protection"},
@@ -110,7 +77,7 @@ func TestAccSqlDatabase_update(t *testing.T) {
 	database_name := fmt.Sprintf("tf-test-%d", RandInt(t))
 
 	VcrTest(t, resource.TestCase{
-		PreCheck:                 func() { AccTestPreCheck(t) },
+		PreCheck:                 func() { acctest.AccTestPreCheck(t) },
 		ProtoV5ProviderFactories: ProtoV5ProviderFactories(t),
 		CheckDestroy:             testAccSqlDatabaseDestroyProducer(t),
 		Steps: []resource.TestStep{

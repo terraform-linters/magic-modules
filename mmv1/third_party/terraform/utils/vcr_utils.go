@@ -20,6 +20,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/hashicorp/terraform-provider-google/google/acctest"
+	"github.com/hashicorp/terraform-provider-google/google/fwmodels"
+	tpgprovider "github.com/hashicorp/terraform-provider-google/google/provider"
+	"github.com/hashicorp/terraform-provider-google/google/tpgresource"
+	transport_tpg "github.com/hashicorp/terraform-provider-google/google/transport"
+
 	"github.com/dnaeon/go-vcr/cassette"
 	"github.com/dnaeon/go-vcr/recorder"
 
@@ -37,7 +43,7 @@ import (
 var configsLock = sync.RWMutex{}
 var sourcesLock = sync.RWMutex{}
 
-var configs map[string]*Config
+var configs map[string]*transport_tpg.Config
 var fwProviders map[string]*frameworkTestProvider
 
 var sources map[string]VcrSource
@@ -49,9 +55,7 @@ type VcrSource struct {
 }
 
 func isVcrEnabled() bool {
-	envPath := os.Getenv("VCR_PATH")
-	vcrMode := os.Getenv("VCR_MODE")
-	return envPath != "" && vcrMode != ""
+	return acctest.IsVcrEnabled()
 }
 
 // Produces a rand.Source for VCR testing based on the given mode.
@@ -106,7 +110,7 @@ func readSeedFromFile(fileName string) (int64, error) {
 	// Remove NULL characters from seed
 	data = bytes.Trim(data, "\x00")
 	seed := string(data)
-	return StringToFixed64(seed)
+	return tpgresource.StringToFixed64(seed)
 }
 
 func writeSeedToFile(seed int64, fileName string) error {
@@ -136,7 +140,7 @@ func vcrFileName(name string) string {
 // VcrTest is a wrapper for resource.Test to swap out providers for VCR providers and handle VCR specific things
 // Can be called when VCR is not enabled, and it will behave as normal
 func VcrTest(t *testing.T, c resource.TestCase) {
-	if isVcrEnabled() {
+	if acctest.IsVcrEnabled() {
 		defer closeRecorder(t)
 	} else if isReleaseDiffEnabled() {
 		c = initializeReleaseDiffTest(c, t.Name())
@@ -151,7 +155,7 @@ func closeRecorder(t *testing.T) {
 	configsLock.RUnlock()
 	if ok {
 		// We did not cache the config if it does not use VCR
-		if !t.Failed() && isVcrEnabled() {
+		if !t.Failed() && acctest.IsVcrEnabled() {
 			// If a test succeeds, write new seed/yaml to files
 			err := config.Client.Transport.(*recorder.Recorder).Stop()
 			if err != nil {
@@ -184,9 +188,9 @@ func closeRecorder(t *testing.T) {
 	configsLock.RUnlock()
 	if fwOk {
 		// We did not cache the config if it does not use VCR
-		if !t.Failed() && isVcrEnabled() {
+		if !t.Failed() && acctest.IsVcrEnabled() {
 			// If a test succeeds, write new seed/yaml to files
-			err := fwProvider.client.Transport.(*recorder.Recorder).Stop()
+			err := fwProvider.Client.Transport.(*recorder.Recorder).Stop()
 			if err != nil {
 				t.Error(err)
 			}
@@ -220,7 +224,7 @@ func isReleaseDiffEnabled() bool {
 
 func initializeReleaseDiffTest(c resource.TestCase, testName string) resource.TestCase {
 	var releaseProvider string
-	packagePath := fmt.Sprint(reflect.TypeOf(Config{}).PkgPath())
+	packagePath := fmt.Sprint(reflect.TypeOf(transport_tpg.Config{}).PkgPath())
 	if strings.Contains(packagePath, "google-beta") {
 		releaseProvider = "google-beta"
 	} else {
@@ -374,7 +378,7 @@ func HandleVCRConfiguration(ctx context.Context, testName string, rndTripper htt
 
 func NewFrameworkTestProvider(testName string) *frameworkTestProvider {
 	return &frameworkTestProvider{
-		frameworkProvider: frameworkProvider{
+		FrameworkProvider: FrameworkProvider{
 			version: "test",
 		},
 		TestName: testName,
@@ -382,23 +386,23 @@ func NewFrameworkTestProvider(testName string) *frameworkTestProvider {
 }
 
 // frameworkTestProvider is a test version of the plugin-framework version of the provider
-// that embeds frameworkProvider whose configure function we can use
+// that embeds FrameworkProvider whose configure function we can use
 // the Configure function is overwritten in the framework_provider_test file
 type frameworkTestProvider struct {
-	frameworkProvider
+	FrameworkProvider
 	TestName string
 }
 
-// Configure is here to overwrite the frameworkProvider configure function for VCR testing
+// Configure is here to overwrite the FrameworkProvider configure function for VCR testing
 func (p *frameworkTestProvider) Configure(ctx context.Context, req provider.ConfigureRequest, resp *provider.ConfigureResponse) {
-	p.frameworkProvider.Configure(ctx, req, resp)
-	if isVcrEnabled() {
+	p.FrameworkProvider.Configure(ctx, req, resp)
+	if acctest.IsVcrEnabled() {
 		if resp.Diagnostics.HasError() {
 			return
 		}
 
 		var diags fwDiags.Diagnostics
-		p.pollInterval, p.client.Transport, diags = HandleVCRConfiguration(ctx, p.TestName, p.client.Transport, p.pollInterval)
+		p.PollInterval, p.Client.Transport, diags = HandleVCRConfiguration(ctx, p.TestName, p.Client.Transport, p.PollInterval)
 		if diags.HasError() {
 			resp.Diagnostics.Append(diags...)
 			return
@@ -413,8 +417,8 @@ func (p *frameworkTestProvider) Configure(ctx context.Context, req provider.Conf
 	}
 }
 
-func configureApiClient(ctx context.Context, p *frameworkProvider, diags *fwDiags.Diagnostics) {
-	var data ProviderModel
+func configureApiClient(ctx context.Context, p *FrameworkProvider, diags *fwDiags.Diagnostics) {
+	var data fwmodels.ProviderModel
 	var d fwDiags.Diagnostics
 
 	// Set defaults if needed - the only attribute without a default is ImpersonateServiceAccountDelegates
@@ -424,13 +428,13 @@ func configureApiClient(ctx context.Context, p *frameworkProvider, diags *fwDiag
 	if diags.HasError() {
 		return
 	}
-	p.LoadAndValidateFramework(ctx, data, "test", diags)
+	p.LoadAndValidateFramework(ctx, data, "test", diags, p.version)
 }
 
 // GetSDKProvider gets the SDK provider with an overwritten configure function to be called by MuxedProviders
 func GetSDKProvider(testName string) *schema.Provider {
-	prov := Provider()
-	if isVcrEnabled() {
+	prov := tpgprovider.Provider()
+	if acctest.IsVcrEnabled() {
 		old := prov.ConfigureContextFunc
 		prov.ConfigureContextFunc = func(ctx context.Context, d *schema.ResourceData) (interface{}, diag.Diagnostics) {
 			return getCachedConfig(ctx, d, old, testName)
@@ -447,7 +451,7 @@ func GetSDKProvider(testName string) *schema.Provider {
 // ConfigureFunc on our provider creates a new HTTP client and sets base paths (config.go LoadAndValidate)
 // VCR requires a single HTTP client to handle all interactions so it can record and replay responses so
 // this caches HTTP clients per test by replacing ConfigureFunc
-func getCachedConfig(ctx context.Context, d *schema.ResourceData, configureFunc schema.ConfigureContextFunc, testName string) (*Config, diag.Diagnostics) {
+func getCachedConfig(ctx context.Context, d *schema.ResourceData, configureFunc schema.ConfigureContextFunc, testName string) (*transport_tpg.Config, diag.Diagnostics) {
 	configsLock.RLock()
 	v, ok := configs[testName]
 	configsLock.RUnlock()
@@ -460,7 +464,7 @@ func getCachedConfig(ctx context.Context, d *schema.ResourceData, configureFunc 
 	}
 
 	var fwD fwDiags.Diagnostics
-	config := c.(*Config)
+	config := c.(*transport_tpg.Config)
 	config.PollInterval, config.Client.Transport, fwD = HandleVCRConfiguration(ctx, testName, config.Client.Transport, config.PollInterval)
 	if fwD.HasError() {
 		diags = append(diags, *frameworkDiagsToSdkDiags(fwD)...)

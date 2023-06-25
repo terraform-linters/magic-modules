@@ -5,6 +5,11 @@ import (
 	"path"
 	"testing"
 
+	"github.com/hashicorp/terraform-provider-google/google/acctest"
+	"github.com/hashicorp/terraform-provider-google/google/services/healthcare"
+	"github.com/hashicorp/terraform-provider-google/google/tpgresource"
+	transport_tpg "github.com/hashicorp/terraform-provider-google/google/transport"
+
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/terraform"
 )
@@ -17,7 +22,7 @@ func TestAccHealthcareFhirStoreIdParsing(t *testing.T) {
 		ExpectedError       bool
 		ExpectedTerraformId string
 		ExpectedFhirStoreId string
-		Config              *Config
+		Config              *transport_tpg.Config
 	}{
 		"id is in project/location/datasetName/fhirStoreName format": {
 			ImportId:            "test-project/us-central1/test-dataset/test-store-name",
@@ -36,17 +41,17 @@ func TestAccHealthcareFhirStoreIdParsing(t *testing.T) {
 			ExpectedError:       false,
 			ExpectedTerraformId: "test-project/us-central1/test-dataset/test-store-name",
 			ExpectedFhirStoreId: "projects/test-project/locations/us-central1/datasets/test-dataset/fhirStores/test-store-name",
-			Config:              &Config{Project: "test-project"},
+			Config:              &transport_tpg.Config{Project: "test-project"},
 		},
 		"id is in location/datasetName/fhirStoreName format without project in config": {
 			ImportId:      "us-central1/test-dataset/test-store-name",
 			ExpectedError: true,
-			Config:        &Config{Project: ""},
+			Config:        &transport_tpg.Config{Project: ""},
 		},
 	}
 
 	for tn, tc := range cases {
-		fhirStoreId, err := ParseHealthcareFhirStoreId(tc.ImportId, tc.Config)
+		fhirStoreId, err := healthcare.ParseHealthcareFhirStoreId(tc.ImportId, tc.Config)
 
 		if tc.ExpectedError && err == nil {
 			t.Fatalf("bad: %s, expected an error", tn)
@@ -78,7 +83,7 @@ func TestAccHealthcareFhirStore_basic(t *testing.T) {
 	resourceName := "google_healthcare_fhir_store.default"
 
 	VcrTest(t, resource.TestCase{
-		PreCheck:                 func() { AccTestPreCheck(t) },
+		PreCheck:                 func() { acctest.AccTestPreCheck(t) },
 		ProtoV5ProviderFactories: ProtoV5ProviderFactories(t),
 		CheckDestroy:             testAccCheckHealthcareFhirStoreDestroyProducer(t),
 		Steps: []resource.TestStep{
@@ -174,7 +179,7 @@ func testAccCheckGoogleHealthcareFhirStoreUpdate(t *testing.T, pubsubTopic strin
 
 			config := GoogleProviderConfig(t)
 
-			gcpResourceUri, err := replaceVarsForTest(config, rs, "{{dataset}}/fhirStores/{{name}}")
+			gcpResourceUri, err := tpgresource.ReplaceVarsForTest(config, rs, "{{dataset}}/fhirStores/{{name}}")
 			if err != nil {
 				return err
 			}

@@ -5,6 +5,9 @@ import (
 	"strings"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
+	tpgcompute "github.com/hashicorp/terraform-provider-google/google/services/compute"
+	"github.com/hashicorp/terraform-provider-google/google/tpgresource"
+	transport_tpg "github.com/hashicorp/terraform-provider-google/google/transport"
 )
 
 // Is the new disk size smaller than the old one?
@@ -106,7 +109,7 @@ func DiskImageDiffSuppress(_, old, new string, _ *schema.ResourceData) bool {
 func diskImageProjectNameEquals(project1, project2 string) bool {
 	// Convert short project name to full name
 	// For instance, centos => centos-cloud
-	fullProjectName, ok := imageMap[project2]
+	fullProjectName, ok := tpgcompute.ImageMap[project2]
 	if ok {
 		project2 = fullProjectName
 	}
@@ -198,12 +201,12 @@ func suppressWindowsFamilyDiff(imageName, familyName string) bool {
 	return strings.Contains(updatedImageName, updatedFamilyString)
 }
 
-func expandComputeDiskType(v interface{}, d TerraformResourceData, config *Config) *string {
+func expandComputeDiskType(v interface{}, d tpgresource.TerraformResourceData, config *transport_tpg.Config) *string {
 	if v == "" {
 		return nil
 	}
 
-	f, err := parseZonalFieldValue("diskTypes", v.(string), "project", "zone", d, config, true)
+	f, err := tpgresource.ParseZonalFieldValue("diskTypes", v.(string), "project", "zone", d, config, true)
 	if err != nil {
 		return nil
 	}
@@ -212,7 +215,7 @@ func expandComputeDiskType(v interface{}, d TerraformResourceData, config *Confi
 	return &rl
 }
 
-func expandComputeDiskSourceImage(v interface{}, d TerraformResourceData, config *Config) *string {
+func expandComputeDiskSourceImage(v interface{}, d tpgresource.TerraformResourceData, config *transport_tpg.Config) *string {
 	if v == "" {
 		return nil
 	}
@@ -221,12 +224,12 @@ func expandComputeDiskSourceImage(v interface{}, d TerraformResourceData, config
 		return nil
 	}
 
-	project, err := getProject(d, config)
+	project, err := tpgresource.GetProject(d, config)
 	if err != nil {
 		return nil
 	}
 
-	f, err := resolveImage(config, project, v.(string))
+	f, err := tpgcompute.ResolveImage(config, project, v.(string))
 	if err != nil {
 		return nil
 	}
@@ -234,12 +237,12 @@ func expandComputeDiskSourceImage(v interface{}, d TerraformResourceData, config
 	return &f
 }
 
-func expandComputeDiskSnapshot(v interface{}, d TerraformResourceData, config *Config) *string {
+func expandComputeDiskSnapshot(v interface{}, d tpgresource.TerraformResourceData, config *transport_tpg.Config) *string {
 	if v == "" {
 		return nil
 	}
 
-	f, err := parseGlobalFieldValue("snapshots", v.(string), "project", d, config, true)
+	f, err := tpgresource.ParseGlobalFieldValue("snapshots", v.(string), "project", d, config, true)
 	if err != nil {
 		return nil
 	}
@@ -263,7 +266,7 @@ func ConvertSelfLinkToV1UnlessNil(v interface{}) *string {
 }
 
 func flattenComputeDiskSnapshot(v interface{}, d *schema.ResourceData, meta interface{}) *string {
-	config := meta.(*Config)
+	config := meta.(*transport_tpg.Config)
 	if v == nil {
 		return nil
 	}
@@ -273,7 +276,7 @@ func flattenComputeDiskSnapshot(v interface{}, d *schema.ResourceData, meta inte
 		return nil
 	}
 
-	val, err := parseGlobalFieldValue("snapshots", *vptr, "project", d, config, true)
+	val, err := tpgresource.ParseGlobalFieldValue("snapshots", *vptr, "project", d, config, true)
 	if err != nil {
 		return nil
 	}
@@ -283,11 +286,11 @@ func flattenComputeDiskSnapshot(v interface{}, d *schema.ResourceData, meta inte
 }
 
 func flattenComputeDiskImage(v interface{}, d *schema.ResourceData, meta interface{}) *string {
-	config := meta.(*Config)
+	config := meta.(*transport_tpg.Config)
 	if v == nil {
 		return nil
 	}
-	project, err := getProject(d, config)
+	project, err := tpgresource.GetProject(d, config)
 	if err != nil {
 		return nil
 	}
@@ -297,7 +300,7 @@ func flattenComputeDiskImage(v interface{}, d *schema.ResourceData, meta interfa
 		return nil
 	}
 
-	f, err := resolveImage(config, project, *vptr)
+	f, err := tpgcompute.ResolveImage(config, project, *vptr)
 	if err != nil {
 		return nil
 	}

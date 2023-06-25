@@ -106,7 +106,6 @@ steps:
 
     - name: 'gcr.io/graphite-docker-images/downstream-builder'
       id: tgc-head
-      allowFailure: true
       secretEnv: ["GITHUB_TOKEN"]
       waitFor: ["merged", "tpg-head"]
       args:
@@ -117,7 +116,6 @@ steps:
 
     - name: 'gcr.io/graphite-docker-images/downstream-builder'
       id: tgc-base
-      allowFailure: true
       secretEnv: ["GITHUB_TOKEN"]
       waitFor: ["merged", "tpg-base"]
       args:
@@ -217,30 +215,38 @@ steps:
       secretEnv: ["GITHUB_TOKEN"]
       waitFor: ["tpgb-head", "tpgb-base"]
       args:
-          - 'beta'
-          - $_PR_NUMBER
-          - $COMMIT_SHA
-          - $BUILD_ID
-          - $PROJECT_ID
-          - GoogleCloudPlatform/magic-modules
-          - "20"  # Build step
+          - 'beta'                            # remove after 07/2023
+          - $_PR_NUMBER                       # remove after 07/2023
+          - $COMMIT_SHA                       # remove after 07/2023
+          - $BUILD_ID                         # remove after 07/2023
+          - $PROJECT_ID                       # remove after 07/2023
+          - GoogleCloudPlatform/magic-modules # remove after 07/2023
+          - "20"                              # remove after 07/2023
+      env:
+        - VERSION=beta
+        - COMMIT_SHA=$COMMIT_SHA
+        - PR_NUMBER=$_PR_NUMBER
 
     - name: 'gcr.io/graphite-docker-images/terraform-tester'
       id: tpg-test
       secretEnv: ["GITHUB_TOKEN"]
       waitFor: ["tpg-head", "tpg-base"]
       args:
-          - 'ga'
-          - $_PR_NUMBER
-          - $COMMIT_SHA
-          - $BUILD_ID
-          - $PROJECT_ID
-          - GoogleCloudPlatform/magic-modules
-          - "21"  # Build step
+          - 'ga'                               # remove after 07/2023
+          - $_PR_NUMBER                        # remove after 07/2023
+          - $COMMIT_SHA                        # remove after 07/2023
+          - $BUILD_ID                          # remove after 07/2023
+          - $PROJECT_ID                        # remove after 07/2023
+          - GoogleCloudPlatform/magic-modules  # remove after 07/2023
+          - "21"                               # remove after 07/2023
+      env:
+        - VERSION=ga
+        - COMMIT_SHA=$COMMIT_SHA
+        - PR_NUMBER=$_PR_NUMBER
 
     - name: 'gcr.io/graphite-docker-images/gcb-terraform-vcr-tester'
       id: gcb-tpg-vcr-test
-      secretEnv: ["GITHUB_TOKEN", "GOOGLE_BILLING_ACCOUNT", "GOOGLE_CUST_ID", "GOOGLE_FIRESTORE_PROJECT", "GOOGLE_IDENTITY_USER", "GOOGLE_MASTER_BILLING_ACCOUNT", "GOOGLE_ORG", "GOOGLE_ORG_2", "GOOGLE_ORG_DOMAIN", "GOOGLE_PROJECT", "GOOGLE_PROJECT_NUMBER", "GOOGLE_SERVICE_ACCOUNT", "SA_KEY"]
+      secretEnv: ["GITHUB_TOKEN", "GOOGLE_BILLING_ACCOUNT", "GOOGLE_CUST_ID", "GOOGLE_FIRESTORE_PROJECT", "GOOGLE_IDENTITY_USER", "GOOGLE_MASTER_BILLING_ACCOUNT", "GOOGLE_ORG", "GOOGLE_ORG_2", "GOOGLE_ORG_DOMAIN", "GOOGLE_PROJECT", "GOOGLE_PROJECT_NUMBER", "GOOGLE_SERVICE_ACCOUNT", "SA_KEY", "GOOGLE_PUBLIC_AVERTISED_PREFIX_DESCRIPTION"]
       waitFor: ["diff"]
       args:
           - $_PR_NUMBER
@@ -282,3 +288,5 @@ availableSecrets:
       env: GOOGLE_SERVICE_ACCOUNT
     - versionName: projects/673497134629/secrets/ci-test-service-account-key/versions/latest
       env: SA_KEY
+    - versionName: projects/673497134629/secrets/ci-test-public-advertised-prefix-description/versions/latest
+      env: GOOGLE_PUBLIC_AVERTISED_PREFIX_DESCRIPTION
