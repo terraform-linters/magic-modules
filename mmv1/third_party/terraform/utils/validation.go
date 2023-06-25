@@ -1,8 +1,8 @@
-package google
+package magicmodules
 
 import (
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
-	"github.com/hashicorp/terraform-provider-google/google/verify"
+	"github.com/terraform-linters/tflint-ruleset-google/rules/magicmodules/verify"
 )
 
 const (
