@@ -50,8 +50,6 @@ module Provider
     def copy_common_files(output_folder, generate_code, generate_docs)
       Google::LOGGER.info 'Copying common files.'
       copy_file_list(output_folder, [
-                       ['validation.go',
-                        'third_party/terraform/utils/validation.go'],
                        ['verify/validation.go',
                         'third_party/terraform/verify/validation.go'],
                     ])
