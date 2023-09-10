@@ -62,8 +62,8 @@ resource "google_compute_instance" "my-logged-instance" {
   }
 }
 
-# A bucket to store logs in
-resource "google_storage_bucket" "log-bucket" {
+# A gcs bucket to store logs in
+resource "google_storage_bucket" "gcs-bucket" {
   name     = "my-unique-logging-bucket"
   location = "US"
 }
@@ -72,14 +72,14 @@ resource "google_storage_bucket" "log-bucket" {
 resource "google_logging_project_sink" "instance-sink" {
   name        = "my-instance-sink"
   description = "some explanation on what this is"
-  destination = "storage.googleapis.com/${google_storage_bucket.log-bucket.name}"
+  destination = "storage.googleapis.com/${google_storage_bucket.gcs-bucket.name}"
   filter      = "resource.type = gce_instance AND resource.labels.instance_id = \"${google_compute_instance.my-logged-instance.instance_id}\""
 
   unique_writer_identity = true
 }
 
 # Because our sink uses a unique_writer, we must grant that writer access to the bucket.
-resource "google_project_iam_binding" "log-writer" {
+resource "google_project_iam_binding" "gcs-bucket-writer" {
   project = "your-project-id"
   role = "roles/storage.objectCreator"
 
@@ -126,7 +126,8 @@ The following arguments are supported:
     - `storage.googleapis.com/[GCS_BUCKET]`
     - `bigquery.googleapis.com/projects/[PROJECT_ID]/datasets/[DATASET]`
     - `pubsub.googleapis.com/projects/[PROJECT_ID]/topics/[TOPIC_ID]`
-    - `logging.googleapis.com/projects/[PROJECT_ID]]/locations/global/buckets/[BUCKET_ID]`
+    - `logging.googleapis.com/projects/[PROJECT_ID]/locations/global/buckets/[BUCKET_ID]`
+    - `logging.googleapis.com/projects/[PROJECT_ID]`
 
     The writer associated with the sink must have access to write to the above resource.
 

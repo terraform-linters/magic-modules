@@ -28,24 +28,33 @@ type Test struct {
 	Steps []Step
 }
 
-func readAllTests(providerDir string) ([]*Test, error) {
-	files, err := os.ReadDir(providerDir)
+// Return a slice of tests as well as a map of file names to errors encountered.
+func readAllTests(servicesDir string) ([]*Test, map[string]error) {
+	dirs, err := os.ReadDir(servicesDir)
 	if err != nil {
-		return nil, err
+		return nil, map[string]error{servicesDir: err}
 	}
 	allTests := make([]*Test, 0)
-	errs := make([]error, 0)
-	for _, file := range files {
-		if strings.HasSuffix(file.Name(), "_test.go") {
-			tests, err := readTestFile(filepath.Join(providerDir, file.Name()))
-			if err != nil {
-				errs = append(errs, err)
+	errs := make(map[string]error, 0)
+	for _, dir := range dirs {
+		servicePath := filepath.Join(servicesDir, dir.Name())
+		files, err := os.ReadDir(servicePath)
+		if err != nil {
+			return nil, map[string]error{servicePath: err}
+		}
+		for _, file := range files {
+			if strings.HasSuffix(file.Name(), "_test.go") {
+				filePath := filepath.Join(servicePath, file.Name())
+				tests, err := readTestFile(filePath)
+				if err != nil {
+					errs[filePath] = err
+				}
+				allTests = append(allTests, tests...)
 			}
-			allTests = append(allTests, tests...)
 		}
 	}
 	if len(errs) > 0 {
-		return allTests, fmt.Errorf("errors reading tests: %v", errs)
+		return allTests, errs
 	}
 	return allTests, nil
 }
@@ -101,7 +110,9 @@ func readTestFunc(testFunc *ast.FuncDecl, funcDecls map[string]*ast.FuncDecl, va
 		if exprStmt, ok := stmt.(*ast.ExprStmt); ok {
 			if callExpr, ok := exprStmt.X.(*ast.CallExpr); ok {
 				// This is a call expression.
-				if ident, ok := callExpr.Fun.(*ast.Ident); ok && ident.Name == "VcrTest" {
+				ident, isIdent := callExpr.Fun.(*ast.Ident)
+				selExpr, isSelExpr := callExpr.Fun.(*ast.SelectorExpr)
+				if isIdent && ident.Name == "VcrTest" || isSelExpr && selExpr.Sel.Name == "VcrTest" {
 					return readVcrTestCall(callExpr, funcDecls, varDecls)
 				}
 			}
@@ -170,6 +181,7 @@ func readStepsCompLit(stepsCompLit *ast.CompositeLit, funcDecls map[string]*ast.
 	return test, nil
 }
 
+// Read the call expression in the public test function that returns the config.
 func readConfigCallExpr(configCallExpr *ast.CallExpr, funcDecls map[string]*ast.FuncDecl, varDecls map[string]*ast.BasicLit) (Step, error) {
 	if ident, ok := configCallExpr.Fun.(*ast.Ident); ok {
 		if configFunc, ok := funcDecls[ident.Name]; ok {
@@ -184,20 +196,31 @@ func readConfigFunc(configFunc *ast.FuncDecl) (Step, error) {
 	for _, stmt := range configFunc.Body.List {
 		if returnStmt, ok := stmt.(*ast.ReturnStmt); ok {
 			for _, result := range returnStmt.Results {
+				if basicLit, ok := result.(*ast.BasicLit); ok && basicLit.Kind == token.STRING {
+					return readConfigBasicLit(basicLit)
+				}
 				if callExpr, ok := result.(*ast.CallExpr); ok {
-					if len(callExpr.Args) == 0 {
-						return nil, fmt.Errorf("no arguments found for call expression %v in %v", callExpr, result)
-					}
-					if basicLit, ok := callExpr.Args[0].(*ast.BasicLit); ok && basicLit.Kind == token.STRING {
-						return readConfigBasicLit(basicLit)
-					}
-					return nil, fmt.Errorf("no string literal found in arguments to call expression %v", callExpr)
+					return readConfigFuncCallExpr(callExpr)
 				}
 			}
 			return nil, fmt.Errorf("failed to find a call expression in results %v", returnStmt.Results)
 		}
 	}
 	return nil, fmt.Errorf("failed to find a return statement in %v", configFunc.Body.List)
+}
+
+// Read the call expression in the config function that returns the config string.
+// The call expression can contain a nested call expression.
+func readConfigFuncCallExpr(configFuncCallExpr *ast.CallExpr) (Step, error) {
+	if len(configFuncCallExpr.Args) == 0 {
+		return nil, fmt.Errorf("no arguments found for call expression %v", configFuncCallExpr)
+	}
+	if basicLit, ok := configFuncCallExpr.Args[0].(*ast.BasicLit); ok && basicLit.Kind == token.STRING {
+		return readConfigBasicLit(basicLit)
+	} else if nestedCallExpr, ok := configFuncCallExpr.Args[0].(*ast.CallExpr); ok {
+		return readConfigFuncCallExpr(nestedCallExpr)
+	}
+	return nil, fmt.Errorf("no string literal found in arguments to call expression %v", configFuncCallExpr)
 }
 
 func readConfigBasicLit(configBasicLit *ast.BasicLit) (Step, error) {

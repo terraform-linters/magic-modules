@@ -9,9 +9,10 @@ import (
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/hashicorp/terraform-provider-google/google/acctest"
+	"github.com/hashicorp/terraform-provider-google/google/envvar"
 	"github.com/hashicorp/terraform-provider-google/google/provider"
 	transport_tpg "github.com/hashicorp/terraform-provider-google/google/transport"
-	"golang.org/x/oauth2/google"
+	googleoauth "golang.org/x/oauth2/google"
 )
 
 const testOauthScope = "https://www.googleapis.com/auth/compute"
@@ -38,6 +39,9 @@ func TestHandleSDKDefaults_BillingProject(t *testing.T) {
 			ExpectedValue: "my-billing-project-from-env",
 		},
 		"when no values are provided via config or environment variables, the field remains unset without error": {
+			EnvVariables: map[string]string{
+				"GOOGLE_BILLING_PROJECT": "", // GOOGLE_BILLING_PROJECT unset
+			},
 			ValueNotProvided: true,
 		},
 	}
@@ -100,13 +104,17 @@ func TestHandleSDKDefaults_Region(t *testing.T) {
 		"region value set in the provider config is not overridden by ENVs": {
 			ConfigValue: "region-from-config",
 			EnvVariables: map[string]string{
-				"GOOGLE_REGION": "region-from-env",
+				"GOOGLE_REGION":           "region-from-env",
+				"GCLOUD_REGION":           "", // GCLOUD_REGION unset
+				"CLOUDSDK_COMPUTE_REGION": "", // CLOUDSDK_COMPUTE_REGION unset
 			},
 			ExpectedValue: "region-from-config",
 		},
 		"region can be set by environment variable, when no value supplied via the config": {
 			EnvVariables: map[string]string{
-				"GOOGLE_REGION": "region-from-env",
+				"GOOGLE_REGION":           "region-from-env",
+				"GCLOUD_REGION":           "", // GCLOUD_REGION unset
+				"CLOUDSDK_COMPUTE_REGION": "", // CLOUDSDK_COMPUTE_REGION unset
 			},
 			ExpectedValue: "region-from-env",
 		},
@@ -120,7 +128,7 @@ func TestHandleSDKDefaults_Region(t *testing.T) {
 		},
 		"when multiple region environment variables are provided, `GCLOUD_REGION` is used second": {
 			EnvVariables: map[string]string{
-				// GOOGLE_REGION unset
+				"GOOGLE_REGION":           "", // GOOGLE_REGION unset
 				"GCLOUD_REGION":           "project-from-GCLOUD_REGION",
 				"CLOUDSDK_COMPUTE_REGION": "project-from-CLOUDSDK_COMPUTE_REGION",
 			},
@@ -128,13 +136,18 @@ func TestHandleSDKDefaults_Region(t *testing.T) {
 		},
 		"when multiple region environment variables are provided, `CLOUDSDK_COMPUTE_REGION` is the last-used ENV": {
 			EnvVariables: map[string]string{
-				// GOOGLE_REGION unset
-				// GCLOUD_REGION unset
+				"GOOGLE_REGION":           "", // GOOGLE_REGION unset
+				"GCLOUD_REGION":           "", // GCLOUD_REGION unset
 				"CLOUDSDK_COMPUTE_REGION": "project-from-CLOUDSDK_COMPUTE_REGION",
 			},
 			ExpectedValue: "project-from-CLOUDSDK_COMPUTE_REGION",
 		},
 		"when no values are provided via config or environment variables, the field remains unset without error": {
+			EnvVariables: map[string]string{
+				"GOOGLE_REGION":           "", // GOOGLE_REGION unset
+				"GCLOUD_REGION":           "", // GCLOUD_REGION unset
+				"CLOUDSDK_COMPUTE_REGION": "", // CLOUDSDK_COMPUTE_REGION unset
+			},
 			ValueNotProvided: true,
 		},
 	}
@@ -197,13 +210,17 @@ func TestHandleSDKDefaults_Zone(t *testing.T) {
 		"region value set in the provider config is not overridden by ENVs": {
 			ConfigValue: "zone-from-config",
 			EnvVariables: map[string]string{
-				"GOOGLE_ZONE": "zone-from-env",
+				"GOOGLE_ZONE":           "zone-from-env",
+				"GCLOUD_ZONE":           "", // GCLOUD_ZONE unset
+				"CLOUDSDK_COMPUTE_ZONE": "", // CLOUDSDK_COMPUTE_ZONE unset
 			},
 			ExpectedValue: "zone-from-config",
 		},
 		"zone can be set by environment variable, when no value supplied via the config": {
 			EnvVariables: map[string]string{
-				"GOOGLE_ZONE": "zone-from-env",
+				"GOOGLE_ZONE":           "zone-from-env",
+				"GCLOUD_ZONE":           "", // GCLOUD_ZONE unset
+				"CLOUDSDK_COMPUTE_ZONE": "", // CLOUDSDK_COMPUTE_ZONE unset
 			},
 			ExpectedValue: "zone-from-env",
 		},
@@ -217,7 +234,7 @@ func TestHandleSDKDefaults_Zone(t *testing.T) {
 		},
 		"when multiple zone environment variables are provided, `GCLOUD_ZONE` is used second": {
 			EnvVariables: map[string]string{
-				// GOOGLE_ZONE unset
+				"GOOGLE_ZONE":           "", // GOOGLE_ZONE unset
 				"GCLOUD_ZONE":           "zone-from-GCLOUD_ZONE",
 				"CLOUDSDK_COMPUTE_ZONE": "zone-from-CLOUDSDK_COMPUTE_ZONE",
 			},
@@ -225,13 +242,18 @@ func TestHandleSDKDefaults_Zone(t *testing.T) {
 		},
 		"when multiple zone environment variables are provided, `CLOUDSDK_COMPUTE_ZONE` is the last-used ENV": {
 			EnvVariables: map[string]string{
-				// GOOGLE_ZONE unset
-				// GCLOUD_ZONE unset
+				"GOOGLE_ZONE":           "", // GOOGLE_ZONE unset
+				"GCLOUD_ZONE":           "", // GCLOUD_ZONE unset
 				"CLOUDSDK_COMPUTE_ZONE": "zone-from-CLOUDSDK_COMPUTE_ZONE",
 			},
 			ExpectedValue: "zone-from-CLOUDSDK_COMPUTE_ZONE",
 		},
 		"when no values are provided via config or environment variables, the field remains unset without error": {
+			EnvVariables: map[string]string{
+				"GOOGLE_ZONE":           "", // GOOGLE_ZONE unset
+				"GCLOUD_ZONE":           "", // GCLOUD_ZONE unset
+				"CLOUDSDK_COMPUTE_ZONE": "", // CLOUDSDK_COMPUTE_ZONE unset
+			},
 			ValueNotProvided: true,
 		},
 	}
@@ -333,6 +355,9 @@ func TestHandleSDKDefaults_UserProjectOverride(t *testing.T) {
 			ExpectError: true,
 		},
 		"when no values are provided via config or environment variables, the field remains unset without error": {
+			EnvVariables: map[string]string{
+				"USER_PROJECT_OVERRIDE": "", // USER_PROJECT_OVERRIDE unset
+			},
 			ValueNotProvided: true,
 		},
 	}
@@ -373,79 +398,6 @@ func TestHandleSDKDefaults_UserProjectOverride(t *testing.T) {
 			}
 			if ok && tc.ValueNotProvided {
 				t.Fatal("expected user_project_override to not be set in the provider data")
-			}
-
-			if v != tc.ExpectedValue {
-				t.Fatalf("unexpected value: wanted %v, got, %v", tc.ExpectedValue, v)
-			}
-		})
-	}
-}
-
-func TestHandleSDKDefaults_RequestReason(t *testing.T) {
-	cases := map[string]struct {
-		ConfigValue      string
-		EnvVariables     map[string]string
-		ExpectedValue    string
-		ValueNotProvided bool
-		ExpectError      bool
-	}{
-		"request_reason value set in the provider config is not overridden by ENVs": {
-			ConfigValue: "request-reason-from-config",
-			EnvVariables: map[string]string{
-				"CLOUDSDK_CORE_REQUEST_REASON": "request-reason-from-env",
-			},
-			ExpectedValue: "request-reason-from-config",
-		},
-		"request_reason can be set by environment variable, when no value supplied via the config": {
-			EnvVariables: map[string]string{
-				"CLOUDSDK_CORE_REQUEST_REASON": "request-reason-from-env",
-			},
-			ExpectedValue: "request-reason-from-env",
-		},
-		"when no values are provided via config or environment variables, the field remains unset without error": {
-			ValueNotProvided: true,
-		},
-	}
-
-	for tn, tc := range cases {
-		t.Run(tn, func(t *testing.T) {
-
-			// Arrange
-			// Create empty schema.ResourceData using the SDK Provider schema
-			emptyConfigMap := map[string]interface{}{}
-			d := schema.TestResourceDataRaw(t, provider.Provider().Schema, emptyConfigMap)
-
-			// Set config value(s)
-			if tc.ConfigValue != "" {
-				d.Set("request_reason", tc.ConfigValue)
-			}
-
-			// Set ENVs
-			if len(tc.EnvVariables) > 0 {
-				for k, v := range tc.EnvVariables {
-					t.Setenv(k, v)
-				}
-			}
-
-			// Act
-			err := transport_tpg.HandleSDKDefaults(d)
-
-			// Assert
-			if err != nil {
-				if !tc.ExpectError {
-					t.Fatalf("error: %v", err)
-				}
-				return
-			}
-
-			// Assert
-			v, ok := d.GetOk("request_reason")
-			if !ok && !tc.ValueNotProvided {
-				t.Fatal("expected request_reason to be set in the provider data")
-			}
-			if ok && tc.ValueNotProvided {
-				t.Fatal("expected request_reason to not be set in the provider data")
 			}
 
 			if v != tc.ExpectedValue {
@@ -504,13 +456,13 @@ func TestConfigLoadAndValidate_accountFileJSONInvalid(t *testing.T) {
 }
 
 func TestAccConfigLoadValidate_credentials(t *testing.T) {
-	if os.Getenv(acctest.TestEnvVar) == "" {
-		t.Skipf("Network access not allowed; use %s=1 to enable", acctest.TestEnvVar)
+	if os.Getenv(envvar.TestEnvVar) == "" {
+		t.Skipf("Network access not allowed; use %s=1 to enable", envvar.TestEnvVar)
 	}
 	acctest.AccTestPreCheck(t)
 
-	creds := acctest.GetTestCredsFromEnv()
-	proj := acctest.GetTestProjectFromEnv()
+	creds := envvar.GetTestCredsFromEnv()
+	proj := envvar.GetTestProjectFromEnv()
 
 	config := &transport_tpg.Config{
 		Credentials: creds,
@@ -532,14 +484,14 @@ func TestAccConfigLoadValidate_credentials(t *testing.T) {
 }
 
 func TestAccConfigLoadValidate_impersonated(t *testing.T) {
-	if os.Getenv(acctest.TestEnvVar) == "" {
-		t.Skipf("Network access not allowed; use %s=1 to enable", acctest.TestEnvVar)
+	if os.Getenv(envvar.TestEnvVar) == "" {
+		t.Skipf("Network access not allowed; use %s=1 to enable", envvar.TestEnvVar)
 	}
 	acctest.AccTestPreCheck(t)
 
 	serviceaccount := transport_tpg.MultiEnvSearch([]string{"IMPERSONATE_SERVICE_ACCOUNT_ACCTEST"})
-	creds := acctest.GetTestCredsFromEnv()
-	proj := acctest.GetTestProjectFromEnv()
+	creds := envvar.GetTestCredsFromEnv()
+	proj := envvar.GetTestProjectFromEnv()
 
 	config := &transport_tpg.Config{
 		Credentials:               creds,
@@ -562,16 +514,16 @@ func TestAccConfigLoadValidate_impersonated(t *testing.T) {
 }
 
 func TestAccConfigLoadValidate_accessTokenImpersonated(t *testing.T) {
-	if os.Getenv(acctest.TestEnvVar) == "" {
-		t.Skipf("Network access not allowed; use %s=1 to enable", acctest.TestEnvVar)
+	if os.Getenv(envvar.TestEnvVar) == "" {
+		t.Skipf("Network access not allowed; use %s=1 to enable", envvar.TestEnvVar)
 	}
 	acctest.AccTestPreCheck(t)
 
-	creds := acctest.GetTestCredsFromEnv()
-	proj := acctest.GetTestProjectFromEnv()
+	creds := envvar.GetTestCredsFromEnv()
+	proj := envvar.GetTestProjectFromEnv()
 	serviceaccount := transport_tpg.MultiEnvSearch([]string{"IMPERSONATE_SERVICE_ACCOUNT_ACCTEST"})
 
-	c, err := google.CredentialsFromJSON(context.Background(), []byte(creds), transport_tpg.DefaultClientScopes...)
+	c, err := googleoauth.CredentialsFromJSON(context.Background(), []byte(creds), transport_tpg.DefaultClientScopes...)
 	if err != nil {
 		t.Fatalf("invalid test credentials: %s", err)
 	}
@@ -602,15 +554,15 @@ func TestAccConfigLoadValidate_accessTokenImpersonated(t *testing.T) {
 }
 
 func TestAccConfigLoadValidate_accessToken(t *testing.T) {
-	if os.Getenv(acctest.TestEnvVar) == "" {
-		t.Skipf("Network access not allowed; use %s=1 to enable", acctest.TestEnvVar)
+	if os.Getenv(envvar.TestEnvVar) == "" {
+		t.Skipf("Network access not allowed; use %s=1 to enable", envvar.TestEnvVar)
 	}
 	acctest.AccTestPreCheck(t)
 
-	creds := acctest.GetTestCredsFromEnv()
-	proj := acctest.GetTestProjectFromEnv()
+	creds := envvar.GetTestCredsFromEnv()
+	proj := envvar.GetTestProjectFromEnv()
 
-	c, err := google.CredentialsFromJSON(context.Background(), []byte(creds), testOauthScope)
+	c, err := googleoauth.CredentialsFromJSON(context.Background(), []byte(creds), testOauthScope)
 	if err != nil {
 		t.Fatalf("invalid test credentials: %s", err)
 	}

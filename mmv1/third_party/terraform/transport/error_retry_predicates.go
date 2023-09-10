@@ -271,6 +271,16 @@ func IsMonitoringConcurrentEditError(err error) (bool, string) {
 	return false, ""
 }
 
+// Retry if Monitoring operation returns a 403
+func IsMonitoringPermissionError(err error) (bool, string) {
+	if gerr, ok := err.(*googleapi.Error); ok {
+		if gerr.Code == 403 {
+			return true, "Waiting for project to be ready for metrics scope"
+		}
+	}
+	return false, ""
+}
+
 // Retry if KMS CryptoKeyVersions returns a 400 for PENDING_GENERATION
 func IsCryptoKeyVersionsPendingGeneration(err error) (bool, string) {
 	if gerr, ok := err.(*googleapi.Error); ok && gerr.Code == 400 {
@@ -471,4 +481,19 @@ func IsSwgAutogenRouterRetryable(err error) (bool, string) {
 	}
 
 	return false, ""
+}
+
+// Retry if getting a resource/operation returns a 403 for specific IAM Admin API Service Account operations.
+// opType should describe the operation for which it can be retryable.
+// IAM API is eventually consistent and returns 403 Forbidden (instead of 404 Not found) for some operations
+// when a newly created resource is attempted to be read right after the creation and not found.
+func IsForbiddenIamServiceAccountRetryableError(opType string) RetryErrorPredicateFunc {
+	return func(err error) (bool, string) {
+		if gerr, ok := err.(*googleapi.Error); ok {
+			if gerr.Code == 403 && strings.Contains(gerr.Body, "Permission 'iam.serviceAccounts.get' denied on resource (or it may not exist)") {
+				return true, fmt.Sprintf("Retry 403s for %s", opType)
+			}
+		}
+		return false, ""
+	}
 }

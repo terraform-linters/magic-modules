@@ -64,6 +64,7 @@ var (
 		"settings.0.ip_configuration.0.private_network",
 		"settings.0.ip_configuration.0.allocated_ip_range",
 		"settings.0.ip_configuration.0.enable_private_path_for_google_cloud_services",
+		"settings.0.ip_configuration.0.psc_config",
 	}
 
 	maintenanceWindowKeys = []string{
@@ -157,6 +158,12 @@ func ResourceSqlDatabaseInstance() *schema.Resource {
 							Required:    true,
 							Description: `The machine type to use. See tiers for more details and supported versions. Postgres supports only shared-core machine types, and custom machine types such as db-custom-2-13312. See the Custom Machine Type Documentation to learn about specifying custom machine types.`,
 						},
+						"edition": {
+							Type:         schema.TypeString,
+							Optional:     true,
+							ValidateFunc: validation.StringInSlice([]string{"ENTERPRISE", "ENTERPRISE_PLUS"}, false),
+							Description:  `The edition of the instance, can be ENTERPRISE or ENTERPRISE_PLUS.`,
+						},
 						"advanced_machine_features": {
 							Type:     schema.TypeList,
 							Optional: true,
@@ -171,6 +178,22 @@ func ResourceSqlDatabaseInstance() *schema.Resource {
 								},
 							},
 						},
+						"data_cache_config": {
+				                        Type:        schema.TypeList,
+				                        Optional:    true,
+				                        MaxItems:    1,
+				                        Description: `Data cache configurations.`,
+				                        Elem: &schema.Resource{
+				                        	Schema: map[string]*schema.Schema{
+				                                    "data_cache_enabled": {
+				                                        Type:        schema.TypeBool,
+				                                        Optional:    true,
+				                                        Default:     false,
+				                                        Description: `Whether data cache is enabled for the instance.`,
+				                                    },
+				                        	},
+				                        },
+				                },
 						"activation_policy": {
 							Type:     schema.TypeString,
 							Optional: true,
@@ -305,7 +328,7 @@ is set to true. Defaults to ZONAL.`,
 										Computed:     true,
 										Optional:     true,
 										AtLeastOneOf: backupConfigurationKeys,
-										Description:  `The number of days of transaction logs we retain for point in time restore, from 1-7.`,
+										Description:  `The number of days of transaction logs we retain for point in time restore, from 1-7. (For PostgreSQL Enterprise Plus instances, from 1 to 35.)`,
 									},
 									"backup_retention_settings": {
 										Type:         schema.TypeList,
@@ -428,6 +451,29 @@ is set to true. Defaults to ZONAL.`,
 										Optional:     true,
 										AtLeastOneOf: ipConfigurationKeys,
 										Description:  `Whether Google Cloud services such as BigQuery are allowed to access data in this Cloud SQL instance over a private IP connection. SQLSERVER database type is not supported.`,
+									},
+									"psc_config": {
+										Type:        schema.TypeSet,
+										Optional:    true,
+										Description: `PSC settings for a Cloud SQL instance.`,
+										Elem: &schema.Resource{
+											Schema: map[string]*schema.Schema{
+												"psc_enabled": {
+													Type:        schema.TypeBool,
+													Optional:    true,
+													Description: `Whether PSC connectivity is enabled for this instance.`,
+												},
+												"allowed_consumer_projects": {
+													Type:     schema.TypeSet,
+													Optional: true,
+													Elem: &schema.Schema{
+														Type: schema.TypeString,
+													},
+													Set:         schema.HashString,
+													Description: `List of consumer projects that are allow-listed for PSC connections to this instance. This instance can be connected to with PSC from any network in these projects. Each consumer project in this list may be represented by a project number (numeric) or by a project id (alphanumeric).`,
+												},
+											},
+										},
 									},
 								},
 							},
@@ -761,7 +807,7 @@ is set to true. Defaults to ZONAL.`,
 							Optional:     true,
 							ForceNew:     true,
 							AtLeastOneOf: replicaConfigurationKeys,
-							Description:  `Specifies if the replica is the failover target. If the field is set to true the replica will be designated as a failover replica. If the master instance fails, the replica instance will be promoted as the new master instance.`,
+							Description:  `Specifies if the replica is the failover target. If the field is set to true the replica will be designated as a failover replica. If the master instance fails, the replica instance will be promoted as the new master instance. Not supported for Postgres`,
 						},
 						"master_heartbeat_period": {
 							Type:         schema.TypeInt,
@@ -845,6 +891,16 @@ is set to true. Defaults to ZONAL.`,
 				Type:        schema.TypeString,
 				Computed:    true,
 				Description: `The URI of the created resource.`,
+			},
+			"psc_service_attachment_link": {
+				Type:        schema.TypeString,
+				Computed:    true,
+				Description: `The link to service attachment of PSC instance.`,
+			},
+			"dns_name": {
+				Type:        schema.TypeString,
+				Computed:    true,
+				Description: `The dns name of the instance.`,
 			},
 			"restore_backup_context": {
 				Type:     schema.TypeList,
@@ -1186,7 +1242,9 @@ func expandSqlDatabaseInstanceSettings(configured []interface{}, databaseVersion
 	settings := &sqladmin.Settings{
 		// Version is unset in Create but is set during update
 		SettingsVersion:            int64(_settings["version"].(int)),
+		DataCacheConfig:            expandDataCacheConfig(_settings["data_cache_config"].([]interface{})),
 		Tier:                       _settings["tier"].(string),
+		Edition:                    _settings["edition"].(string),
 		AdvancedMachineFeatures:    expandSqlServerAdvancedMachineFeatures(_settings["advanced_machine_features"].([]interface{})),
 		ForceSendFields:            []string{"StorageAutoResize"},
 		ActivationPolicy:           _settings["activation_policy"].(string),
@@ -1312,7 +1370,20 @@ func expandIpConfiguration(configured []interface{}, databaseVersion string) *sq
 		AuthorizedNetworks:                      expandAuthorizedNetworks(_ipConfiguration["authorized_networks"].(*schema.Set).List()),
 		EnablePrivatePathForGoogleCloudServices: _ipConfiguration["enable_private_path_for_google_cloud_services"].(bool),
 		ForceSendFields:                         forceSendFields,
+		PscConfig:                               expandPscConfig(_ipConfiguration["psc_config"].(*schema.Set).List()),
 	}
+}
+
+func expandPscConfig(configured []interface{}) *sqladmin.PscConfig {
+	for _, _pscConfig := range configured {
+		_entry := _pscConfig.(map[string]interface{})
+		return &sqladmin.PscConfig{
+			PscEnabled:              _entry["psc_enabled"].(bool),
+			AllowedConsumerProjects: tpgresource.ConvertStringArr(_entry["allowed_consumer_projects"].(*schema.Set).List()),
+		}
+	}
+
+	return nil
 }
 
 func expandAuthorizedNetworks(configured []interface{}) []*sqladmin.AclEntry {
@@ -1343,6 +1414,17 @@ func expandDatabaseFlags(configured []interface{}) []*sqladmin.DatabaseFlags {
 		})
 	}
 	return databaseFlags
+}
+
+func expandDataCacheConfig(configured interface{}) *sqladmin.DataCacheConfig {
+	l := configured.([]interface{})
+	if len(l) == 0 {
+		return nil
+	}
+	config := l[0].(map[string]interface{})
+	return &sqladmin.DataCacheConfig{
+		DataCacheEnabled: config["data_cache_enabled"].(bool),
+	}
 }
 
 func expandBackupConfiguration(configured []interface{}) *sqladmin.BackupConfiguration {
@@ -1568,6 +1650,12 @@ func resourceSqlDatabaseInstanceRead(d *schema.ResourceData, meta interface{}) e
 	}
 	if err := d.Set("self_link", instance.SelfLink); err != nil {
 		return fmt.Errorf("Error setting self_link: %s", err)
+	}
+	if err := d.Set("psc_service_attachment_link", instance.PscServiceAttachmentLink); err != nil {
+		return fmt.Errorf("Error setting psc_service_attachment_link: %s", err)
+	}
+	if err := d.Set("dns_name", instance.DnsName); err != nil {
+		return fmt.Errorf("Error setting dns_name: %s", err)
 	}
 	d.SetId(instance.Name)
 
@@ -1907,6 +1995,7 @@ func flattenSettings(settings *sqladmin.Settings) []map[string]interface{} {
 	data := map[string]interface{}{
 		"version":                      settings.SettingsVersion,
 		"tier":                         settings.Tier,
+		"edition":                      settings.Edition,
 		"activation_policy":            settings.ActivationPolicy,
 		"availability_type":            settings.AvailabilityType,
 		"collation":                    settings.Collation,
@@ -1967,11 +2056,26 @@ func flattenSettings(settings *sqladmin.Settings) []map[string]interface{} {
 		data["password_validation_policy"] = flattenPasswordValidationPolicy(settings.PasswordValidationPolicy)
 	}
 
+	if settings.DataCacheConfig != nil {
+        	data["data_cache_config"] = flattenDataCacheConfig(settings.DataCacheConfig)
+    	}
+
 	if settings.AdvancedMachineFeatures != nil {
 		data["advanced_machine_features"] = flattenSqlServerAdvancedMachineFeatures(settings.AdvancedMachineFeatures)
 	}
 
 	return []map[string]interface{}{data}
+}
+
+func flattenDataCacheConfig(d *sqladmin.DataCacheConfig) []map[string]interface{} {
+	if d == nil {
+		return nil
+	}
+	return []map[string]interface{}{
+		{
+	            "data_cache_enabled": d.DataCacheEnabled,
+	        },
+	}
 }
 
 func flattenBackupConfiguration(backupConfiguration *sqladmin.BackupConfiguration) []map[string]interface{} {
@@ -2078,6 +2182,19 @@ func flattenIpConfiguration(ipConfiguration *sqladmin.IpConfiguration) interface
 
 	if ipConfiguration.AuthorizedNetworks != nil {
 		data["authorized_networks"] = flattenAuthorizedNetworks(ipConfiguration.AuthorizedNetworks)
+	}
+
+	if ipConfiguration.PscConfig != nil {
+		data["psc_config"] = flattenPscConfigs(ipConfiguration.PscConfig)
+	}
+
+	return []map[string]interface{}{data}
+}
+
+func flattenPscConfigs(pscConfig *sqladmin.PscConfig) interface{} {
+	data := map[string]interface{}{
+		"psc_enabled":               pscConfig.PscEnabled,
+		"allowed_consumer_projects": schema.NewSet(schema.HashString, tpgresource.ConvertStringArrToInterface(pscConfig.AllowedConsumerProjects)),
 	}
 
 	return []map[string]interface{}{data}

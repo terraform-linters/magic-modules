@@ -147,6 +147,9 @@ func bigQueryTableMapKeyOverride(key string, objectA, objectB map[string]interfa
 			return false
 		}
 		return bigQueryTableTypeEq(valA.(string), valB.(string))
+	case "policyTags":
+		eq := bigQueryTableNormalizePolicyTags(valA) == nil && bigQueryTableNormalizePolicyTags(valB) == nil
+		return eq
 	}
 
 	// otherwise rely on default behavior
@@ -221,6 +224,23 @@ func bigQueryTableModeIsForceNew(old, new string) bool {
 	eq := old == new
 	reqToNull := old == "REQUIRED" && new == "NULLABLE"
 	return !eq && !reqToNull
+}
+
+func bigQueryTableNormalizePolicyTags(val interface{}) interface{} {
+	if val == nil {
+		return nil
+	}
+	if policyTags, ok := val.(map[string]interface{}); ok {
+		// policyTags = {} is same as nil.
+		if len(policyTags) == 0 {
+			return nil
+		}
+		// policyTags = {names = []} is same as nil.
+		if names, ok := policyTags["names"].([]interface{}); ok && len(names) == 0 {
+			return nil
+		}
+	}
+	return val
 }
 
 // Compares two existing schema implementations and decides if
@@ -442,7 +462,7 @@ func ResourceBigQueryTable() *schema.Resource {
 						// SourceFormat [Required] The data format.
 						"source_format": {
 							Type:        schema.TypeString,
-							Required:    true,
+							Optional:    true,
 							Description: ` Please see sourceFormat under ExternalDataConfiguration in Bigquery's public API documentation (https://cloud.google.com/bigquery/docs/reference/rest/v2/tables#externaldataconfiguration) for supported formats. To use "GOOGLE_SHEETS" the scopes must include "googleapis.com/auth/drive.readonly".`,
 							ValidateFunc: validation.StringInSlice([]string{
 								"CSV", "GOOGLE_SHEETS", "NEWLINE_DELIMITED_JSON", "AVRO", "ICEBERG", "DATASTORE_BACKUP", "PARQUET", "ORC", "BIGTABLE",
@@ -454,6 +474,12 @@ func ResourceBigQueryTable() *schema.Resource {
 							Required:    true,
 							Description: `A list of the fully-qualified URIs that point to your data in Google Cloud.`,
 							Elem:        &schema.Schema{Type: schema.TypeString},
+						},
+						// FileSetSpecType: [Optional] Specifies how source URIs are interpreted for constructing the file set to load.  By default source URIs are expanded against the underlying storage.  Other options include specifying manifest files. Only applicable to object storage systems.
+						"file_set_spec_type": {
+							Type:        schema.TypeString,
+							Optional:    true,
+							Description: `Specifies how source URIs are interpreted for constructing the file set to load.  By default source URIs are expanded against the underlying storage.  Other options include specifying manifest files. Only applicable to object storage systems.`,
 						},
 						// Compression: [Optional] The compression type of the data source.
 						"compression": {
@@ -534,6 +560,45 @@ func ResourceBigQueryTable() *schema.Resource {
 										Optional:    true,
 										Default:     0,
 										Description: `The number of rows at the top of a CSV file that BigQuery will skip when reading the data.`,
+									},
+								},
+							},
+						},
+						// jsonOptions: [Optional] Additional properties to set if sourceFormat is set to JSON.
+						"json_options": {
+							Type:        schema.TypeList,
+							Optional:    true,
+							MaxItems:    1,
+							Description: `Additional properties to set if sourceFormat is set to JSON."`,
+							Elem: &schema.Resource{
+								Schema: map[string]*schema.Schema{
+									"encoding": {
+										Type:         schema.TypeString,
+										Optional:     true,
+										Default:      "UTF-8",
+										ValidateFunc: validation.StringInSlice([]string{"UTF-8", "UTF-16BE", "UTF-16LE", "UTF-32BE", "UTF-32LE"}, false),
+										Description:  `The character encoding of the data. The supported values are UTF-8, UTF-16BE, UTF-16LE, UTF-32BE, and UTF-32LE. The default value is UTF-8.`,
+									},
+								},
+							},
+						},
+
+						"parquet_options": {
+							Type:        schema.TypeList,
+							Optional:    true,
+							MaxItems:    1,
+							Description: `Additional properties to set if sourceFormat is set to PARQUET."`,
+							Elem: &schema.Resource{
+								Schema: map[string]*schema.Schema{
+									"enum_as_string": {
+										Type:        schema.TypeBool,
+										Optional:    true,
+										Description: `Indicates whether to infer Parquet ENUM logical type as STRING instead of BYTES by default.`,
+									},
+									"enable_list_inference": {
+										Type:        schema.TypeBool,
+										Optional:    true,
+										Description: `Indicates whether to use schema inference specifically for Parquet LIST logical type.`,
 									},
 								},
 							},
@@ -658,6 +723,18 @@ func ResourceBigQueryTable() *schema.Resource {
 							Optional:    true,
 							Description: `When creating an external table, the user can provide a reference file with the table schema. This is enabled for the following formats: AVRO, PARQUET, ORC.`,
 						},
+						"metadata_cache_mode": {
+							Type:         schema.TypeString,
+							Optional:     true,
+							Description:  `Metadata Cache Mode for the table. Set this to enable caching of metadata from external data source.`,
+							ValidateFunc: validation.StringInSlice([]string{"AUTOMATIC", "MANUAL"}, false),
+						},
+						"object_metadata": {
+							Type:          schema.TypeString,
+							Optional:      true,
+							Description:   `Object Metadata is used to create Object Tables. Object Tables contain a listing of objects (with their metadata) found at the sourceUris. If ObjectMetadata is set, sourceFormat should be omitted.`,
+							ConflictsWith: []string{"external_data_configuration.0.source_format"},
+						},
 					},
 				},
 			},
@@ -667,6 +744,13 @@ func ResourceBigQueryTable() *schema.Resource {
 				Type:        schema.TypeString,
 				Optional:    true,
 				Description: `A descriptive name for the table.`,
+			},
+
+			// max_staleness: [Optional] The maximum staleness of data that could be returned when the table (or stale MV) is queried. Staleness encoded as a string encoding of sql IntervalValue type.
+			"max_staleness": {
+				Type:        schema.TypeString,
+				Optional:    true,
+				Description: `The maximum staleness of data that could be returned when the table (or stale MV) is queried. Staleness encoded as a string encoding of sql IntervalValue type.`,
 			},
 
 			// Labels: [Experimental] The labels associated with this table. You can
@@ -1027,6 +1111,10 @@ func resourceTable(d *schema.ResourceData, meta interface{}) (*bigquery.Table, e
 		table.FriendlyName = v.(string)
 	}
 
+	if v, ok := d.GetOk("max_staleness"); ok {
+		table.MaxStaleness = v.(string)
+	}
+
 	if v, ok := d.GetOk("encryption_configuration.0.kms_key_name"); ok {
 		table.EncryptionConfiguration = &bigquery.EncryptionConfiguration{
 			KmsKeyName: v.(string),
@@ -1044,7 +1132,10 @@ func resourceTable(d *schema.ResourceData, meta interface{}) (*bigquery.Table, e
 	}
 
 	if v, ok := d.GetOk("schema"); ok {
-		schema, err := expandSchema(v)
+		_, viewPresent := d.GetOk("view")
+		_, materializedViewPresent := d.GetOk("materialized_view")
+		managePolicyTags := !viewPresent && !materializedViewPresent
+		schema, err := expandSchema(v, managePolicyTags)
 		if err != nil {
 			return nil, err
 		}
@@ -1164,6 +1255,9 @@ func resourceBigQueryTableRead(d *schema.ResourceData, meta interface{}) error {
 	}
 	if err := d.Set("friendly_name", res.FriendlyName); err != nil {
 		return fmt.Errorf("Error setting friendly_name: %s", err)
+	}
+	if err := d.Set("max_staleness", res.MaxStaleness); err != nil {
+		return fmt.Errorf("Error setting max_staleness: %s", err)
 	}
 	if err := d.Set("labels", res.Labels); err != nil {
 		return fmt.Errorf("Error setting labels: %s", err)
@@ -1355,11 +1449,19 @@ func expandExternalDataConfiguration(cfg interface{}) (*bigquery.ExternalDataCon
 		edc.SourceUris = sourceUris
 	}
 
+	if v, ok := raw["file_set_spec_type"]; ok {
+		edc.FileSetSpecType = v.(string)
+	}
+
 	if v, ok := raw["compression"]; ok {
 		edc.Compression = v.(string)
 	}
+
 	if v, ok := raw["csv_options"]; ok {
 		edc.CsvOptions = expandCsvOptions(v)
+	}
+	if v, ok := raw["json_options"]; ok {
+		edc.JsonOptions = expandJsonOptions(v)
 	}
 	if v, ok := raw["google_sheets_options"]; ok {
 		edc.GoogleSheetsOptions = expandGoogleSheetsOptions(v)
@@ -1370,6 +1472,10 @@ func expandExternalDataConfiguration(cfg interface{}) (*bigquery.ExternalDataCon
 	if v, ok := raw["avro_options"]; ok {
 		edc.AvroOptions = expandAvroOptions(v)
 	}
+	if v, ok := raw["parquet_options"]; ok {
+		edc.ParquetOptions = expandParquetOptions(v)
+	}
+
 	if v, ok := raw["ignore_unknown_values"]; ok {
 		edc.IgnoreUnknownValues = v.(bool)
 	}
@@ -1377,7 +1483,8 @@ func expandExternalDataConfiguration(cfg interface{}) (*bigquery.ExternalDataCon
 		edc.MaxBadRecords = int64(v.(int))
 	}
 	if v, ok := raw["schema"]; ok {
-		schema, err := expandSchema(v)
+		managePolicyTags := true
+		schema, err := expandSchema(v, managePolicyTags)
 		if err != nil {
 			return nil, err
 		}
@@ -1392,6 +1499,12 @@ func expandExternalDataConfiguration(cfg interface{}) (*bigquery.ExternalDataCon
 	if v, ok := raw["reference_file_schema_uri"]; ok {
 		edc.ReferenceFileSchemaUri = v.(string)
 	}
+	if v, ok := raw["metadata_cache_mode"]; ok {
+		edc.MetadataCacheMode = v.(string)
+	}
+	if v, ok := raw["object_metadata"]; ok {
+		edc.ObjectMetadata = v.(string)
+	}
 
 	return edc, nil
 
@@ -1402,6 +1515,10 @@ func flattenExternalDataConfiguration(edc *bigquery.ExternalDataConfiguration) (
 
 	result["autodetect"] = edc.Autodetect
 	result["source_uris"] = edc.SourceUris
+
+	if edc.FileSetSpecType != "" {
+		result["file_set_spec_type"] = edc.FileSetSpecType
+	}
 
 	if edc.Compression != "" {
 		result["compression"] = edc.Compression
@@ -1423,6 +1540,14 @@ func flattenExternalDataConfiguration(edc *bigquery.ExternalDataConfiguration) (
 		result["avro_options"] = flattenAvroOptions(edc.AvroOptions)
 	}
 
+	if edc.ParquetOptions != nil {
+		result["parquet_options"] = flattenParquetOptions(edc.ParquetOptions)
+	}
+
+	if edc.JsonOptions != nil {
+		result["json_options"] = flattenJsonOptions(edc.JsonOptions)
+	}
+
 	if edc.IgnoreUnknownValues {
 		result["ignore_unknown_values"] = edc.IgnoreUnknownValues
 	}
@@ -1440,6 +1565,13 @@ func flattenExternalDataConfiguration(edc *bigquery.ExternalDataConfiguration) (
 
 	if edc.ReferenceFileSchemaUri != "" {
 		result["reference_file_schema_uri"] = edc.ReferenceFileSchemaUri
+	}
+	if edc.MetadataCacheMode != "" {
+		result["metadata_cache_mode"] = edc.MetadataCacheMode
+	}
+
+	if edc.ObjectMetadata != "" {
+		result["object_metadata"] = edc.ObjectMetadata
 	}
 
 	return []map[string]interface{}{result}, nil
@@ -1613,7 +1745,65 @@ func flattenAvroOptions(opts *bigquery.AvroOptions) []map[string]interface{} {
 	return []map[string]interface{}{result}
 }
 
-func expandSchema(raw interface{}) (*bigquery.TableSchema, error) {
+func expandParquetOptions(configured interface{}) *bigquery.ParquetOptions {
+	if len(configured.([]interface{})) == 0 {
+		return nil
+	}
+
+	raw := configured.([]interface{})[0].(map[string]interface{})
+	opts := &bigquery.ParquetOptions{}
+
+	if v, ok := raw["enum_as_string"]; ok {
+		opts.EnumAsString = v.(bool)
+	}
+
+	if v, ok := raw["enable_list_inference"]; ok {
+		opts.EnableListInference = v.(bool)
+	}
+
+	return opts
+}
+
+func flattenParquetOptions(opts *bigquery.ParquetOptions) []map[string]interface{} {
+	result := map[string]interface{}{}
+
+	if opts.EnumAsString {
+		result["enum_as_string"] = opts.EnumAsString
+	}
+
+	if opts.EnableListInference {
+		result["enable_list_inference"] = opts.EnableListInference
+	}
+
+	return []map[string]interface{}{result}
+}
+
+func expandJsonOptions(configured interface{}) *bigquery.JsonOptions {
+	if len(configured.([]interface{})) == 0 {
+		return nil
+	}
+
+	raw := configured.([]interface{})[0].(map[string]interface{})
+	opts := &bigquery.JsonOptions{}
+
+	if v, ok := raw["encoding"]; ok {
+		opts.Encoding = v.(string)
+	}
+
+	return opts
+}
+
+func flattenJsonOptions(opts *bigquery.JsonOptions) []map[string]interface{} {
+	result := map[string]interface{}{}
+
+	if opts.Encoding != "" {
+		result["encoding"] = opts.Encoding
+	}
+
+	return []map[string]interface{}{result}
+}
+
+func expandSchema(raw interface{}, managePolicyTags bool) (*bigquery.TableSchema, error) {
 	var fields []*bigquery.TableFieldSchema
 
 	if len(raw.(string)) == 0 {
@@ -1622,6 +1812,12 @@ func expandSchema(raw interface{}) (*bigquery.TableSchema, error) {
 
 	if err := json.Unmarshal([]byte(raw.(string)), &fields); err != nil {
 		return nil, err
+	}
+
+	if managePolicyTags {
+		for _, field := range fields {
+			setEmptyPolicyTagsInSchema(field)
+		}
 	}
 
 	return &bigquery.TableSchema{Fields: fields}, nil
@@ -1634,6 +1830,21 @@ func flattenSchema(tableSchema *bigquery.TableSchema) (string, error) {
 	}
 
 	return string(schema), nil
+}
+
+// Explicitly set empty PolicyTags unless the PolicyTags field is specified in the schema.
+func setEmptyPolicyTagsInSchema(field *bigquery.TableFieldSchema) {
+	// Field has children fields.
+	if len(field.Fields) > 0 {
+		for _, subField := range field.Fields {
+			setEmptyPolicyTagsInSchema(subField)
+		}
+		return
+	}
+	// Field is a leaf.
+	if field.PolicyTags == nil {
+		field.PolicyTags = &bigquery.TableFieldSchemaPolicyTags{Names: []string{}}
+	}
 }
 
 func expandTimePartitioning(configured interface{}) *bigquery.TimePartitioning {
