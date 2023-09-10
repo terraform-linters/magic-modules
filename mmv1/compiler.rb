@@ -148,7 +148,7 @@ all_product_files = all_product_files.sort_by { |product| product == 'products/c
 # products_for_version entries are a hash of product definitions (:definitions)
 # and provider config (:overrides) for the product
 # rubocop:disable Metrics/BlockLength
-products_for_version = Parallel.map(all_product_files, in_processes: 8) do |product_name|
+products_for_version = all_product_files.map do |product_name|
   product_override_path = ''
   product_override_path = File.join(override_dir, product_name, 'product.yaml') if override_dir
   product_yaml_path = File.join(product_name, 'product.yaml')
