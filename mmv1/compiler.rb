@@ -32,6 +32,7 @@ require 'provider/terraform'
 require 'provider/terraform_kcc'
 require 'provider/terraform_oics'
 require 'provider/terraform_tgc'
+require 'provider/terraform_tgc_cai2hcl'
 require 'provider/tflint'
 
 products_to_generate = nil
@@ -224,6 +225,9 @@ products_for_version = all_product_files.map do |product_name|
       end
       res_yaml = File.read(file_path)
       resource = Api::Compiler.new(res_yaml).run
+      resource.properties = resource.add_labels_related_fields(
+        resource.properties_with_excluded, nil
+      )
       resource.validate
       resources.push(resource)
     end
@@ -250,6 +254,9 @@ products_for_version = all_product_files.map do |product_name|
           res_yaml = res_yaml.gsub('{{override_path}}', override_dir)
         end
         resource = Api::Compiler.new(res_yaml).run
+        resource.properties = resource.add_labels_related_fields(
+          resource.properties_with_excluded, nil
+        )
         resource.validate
         resources.push(resource)
       end
@@ -278,6 +285,7 @@ products_for_version = all_product_files.map do |product_name|
       'oics' => Provider::TerraformOiCS,
       'validator' => Provider::TerraformGoogleConversion,
       'tgc' => Provider::TerraformGoogleConversion,
+      'tgc_cai2hcl' => Provider::CaiToTerraformConversion,
       'kcc' => Provider::TerraformKCC,
       'tflint' => Provider::TFLint
     }
