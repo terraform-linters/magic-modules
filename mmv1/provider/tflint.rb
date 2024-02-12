@@ -1,15 +1,16 @@
-require 'provider/abstract_core'
-
 module Provider
   class TFLint < Provider::Terraform
     @@rule_names = []
-    @@api_products = {}
+    @@resource_url = {}
 
     def generate_resource(pwd, data, generate_code, generate_docs)
-      tf_product = (@config.legacy_name || data.product.name).underscore
-      @terraform_name = data.object.legacy_name || "google_#{tf_product}_#{data.object.name.underscore}"
+      @terraform_name = data.object.legacy_name || "google_#{full_resource_name(data)}"
 
-      @@api_products[@terraform_name] = data.product
+      begin
+        @@resource_url[@terraform_name] = URI.parse(data.product.base_url).host
+      rescue URI::InvalidURIError => exn
+        Google::LOGGER.warn "Cannot parse Api::Product#base_url: #{exn}"
+      end
 
       data.object.all_user_properties.each do |prop|
         next if prop.output
@@ -34,7 +35,7 @@ module Provider
 
     def compile_common_files(output_folder, products, common_compile_file)
       @rule_names = @@rule_names.sort
-      @api_products = @@api_products
+      @resource_url = @@resource_url
 
       Google::LOGGER.info 'Compiling common files.'
       file_template = ProviderFileTemplate.new(
@@ -44,7 +45,7 @@ module Provider
         products
       )
       compile_file_list(output_folder, [['provider.go', 'templates/tflint/provider.go.erb']], file_template)
-      compile_file_list(output_folder, [['product.go', 'templates/tflint/product.go.erb']], file_template)
+      compile_file_list(output_folder, [['api_definition.go', 'templates/tflint/api_definition.go.erb']], file_template)
     end
 
     def copy_common_files(output_folder, generate_code, generate_docs)
