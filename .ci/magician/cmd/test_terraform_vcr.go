@@ -15,7 +15,6 @@ import (
 )
 
 var ttvEnvironmentVariables = [...]string{
-	"GITHUB_TOKEN",
 	"GOCACHE",
 	"GOPATH",
 	"GOOGLE_BILLING_ACCOUNT",
@@ -31,7 +30,6 @@ var ttvEnvironmentVariables = [...]string{
 	"GOOGLE_REGION",
 	"GOOGLE_SERVICE_ACCOUNT",
 	"GOOGLE_PUBLIC_AVERTISED_PREFIX_DESCRIPTION",
-	"GOOGLE_TPU_V2_VM_RUNTIME_VERSION",
 	"GOOGLE_ZONE",
 	"HOME",
 	"PATH",
@@ -54,18 +52,27 @@ var testTerraformVCRCmd = &cobra.Command{
 			env[ev] = val
 		}
 
+		for _, tokenName := range []string{"GITHUB_TOKEN_DOWNSTREAMS", "GITHUB_TOKEN_MAGIC_MODULES"} {
+			val, ok := lookupGithubTokenOrFallback(tokenName)
+			if !ok {
+				fmt.Printf("Did not provide %s or GITHUB_TOKEN environment variable\n", tokenName)
+				os.Exit(1)
+			}
+			env[tokenName] = val
+		}
+
 		baseBranch := os.Getenv("BASE_BRANCH")
 		if baseBranch == "" {
 			baseBranch = "main"
 		}
 
-		gh := github.NewClient()
+		gh := github.NewClient(env["GITHUB_TOKEN_MAGIC_MODULES"])
 		rnr, err := exec.NewRunner()
 		if err != nil {
 			fmt.Println("Error creating a runner: ", err)
 			os.Exit(1)
 		}
-		ctlr := source.NewController(env["GOPATH"], "modular-magician", env["GITHUB_TOKEN"], rnr)
+		ctlr := source.NewController(env["GOPATH"], "modular-magician", env["GITHUB_TOKEN_DOWNSTREAMS"], rnr)
 
 		vt, err := vcr.NewTester(env, rnr)
 		if err != nil {
@@ -109,10 +116,10 @@ func execTestTerraformVCR(prNumber, mmCommitSha, buildID, projectID, buildStep, 
 	}
 
 	if len(services) == 0 && !runFullVCR {
-		fmt.Println("Skipping tests: No go files changed")
+		fmt.Println("Skipping tests: No go files or test fixtures changed")
 		os.Exit(0)
 	}
-	fmt.Println("Running tests: Go files changed")
+	fmt.Println("Running tests: Go files or test fixtures changed")
 
 	if err := vt.FetchCassettes(provider.Beta, baseBranch, prNumber); err != nil {
 		fmt.Println("Error fetching cassettes: ", err)
@@ -168,6 +175,8 @@ Affected tests: ` + fmt.Sprintf("`%d`", len(replayingResult.FailedTests)) + `
 		recordingResult, recordingErr := vt.RunParallel(vcr.Recording, provider.Beta, testDirs, replayingResult.FailedTests)
 		if recordingErr != nil {
 			testState = "failure"
+		} else {
+			testState = "success"
 		}
 
 		if err := vt.UploadCassettes("ci-vcr-cassettes", prNumber, provider.Beta); err != nil {
@@ -200,7 +209,7 @@ Affected tests: ` + fmt.Sprintf("`%d`", len(replayingResult.FailedTests)) + `
 				testState = "failure"
 			}
 
-			if err := vt.UploadLogs("ci-vcr-logs", prNumber, buildID, true, false, vcr.Recording, provider.Beta); err != nil {
+			if err := vt.UploadLogs("ci-vcr-logs", prNumber, buildID, true, true, vcr.Replaying, provider.Beta); err != nil {
 				fmt.Println("Error uploading recording logs: ", err)
 				os.Exit(1)
 			}
@@ -271,7 +280,7 @@ Please fix these to complete your PR. If you believe these test failures to be i
 }
 
 func modifiedPackages(newBranch, oldBranch string, rnr ExecRunner) (map[string]struct{}, bool, error) {
-	fmt.Println("Checking for modified go files")
+	fmt.Println("Checking for modified go files or test fixtures")
 
 	if _, err := rnr.Run("git", []string{"fetch", "origin", fmt.Sprintf("%s:%s", oldBranch, oldBranch), "--depth", "1"}, nil); err != nil {
 
@@ -280,9 +289,13 @@ func modifiedPackages(newBranch, oldBranch string, rnr ExecRunner) (map[string]s
 	if err != nil {
 		return nil, false, err
 	}
+	return modifiedPackagesFromDiffs(strings.Split(diffs, "\n"))
+}
+
+func modifiedPackagesFromDiffs(diffs []string) (map[string]struct{}, bool, error) {
 	var goFiles []string
-	for _, line := range strings.Split(diffs, "\n") {
-		if strings.HasSuffix(line, ".go") || line == "go.mod" || line == "go.sum" {
+	for _, line := range diffs {
+		if strings.HasSuffix(line, ".go") || strings.Contains(line, "test-fixtures") || strings.HasSuffix(line, "go.mod") || strings.HasSuffix(line, "go.sum") {
 			goFiles = append(goFiles, line)
 		}
 	}

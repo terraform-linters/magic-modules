@@ -33,6 +33,12 @@ resource "google_organization_iam_member" "sa_access_boundary_admin" {
   member = google_service_account.sa.member
 }
 
+resource "google_organization_iam_member" "sa_apphub_admin" {
+  org_id = data.google_organization.org.org_id
+  role   = "roles/apphub.admin"
+  member = google_service_account.sa.member
+}
+
 resource "google_organization_iam_member" "sa_assuredworkloads_admin" {
   org_id = data.google_organization.org.org_id
   role   = "roles/assuredworkloads.admin"
@@ -60,6 +66,18 @@ resource "google_organization_iam_member" "sa_cloudkms_admin" {
 resource "google_organization_iam_member" "sa_compute_xpn_admin" {
   org_id = data.google_organization.org.org_id
   role   = "roles/compute.xpnAdmin"
+  member = google_service_account.sa.member
+}
+
+resource "google_organization_iam_member" "sa_contentwarehouse_admin" {
+  org_id = data.google_organization.org.org_id
+  role   = "roles/contentwarehouse.admin"
+  member = google_service_account.sa.member
+}
+
+resource "google_organization_iam_member" "sa_contentwarehouse_document_admin" {
+  org_id = data.google_organization.org.org_id
+  role   = "roles/contentwarehouse.documentAdmin"
   member = google_service_account.sa.member
 }
 
@@ -168,6 +186,7 @@ module "project-services" {
     "apikeys.googleapis.com",
     "appengine.googleapis.com",
     "appengineflex.googleapis.com",
+    "apphub.googleapis.com",
     "artifactregistry.googleapis.com",
     "assuredworkloads.googleapis.com",
     "autoscaling.googleapis.com",
@@ -196,6 +215,7 @@ module "project-services" {
     "cloudidentity.googleapis.com",
     "cloudiot.googleapis.com",
     "cloudkms.googleapis.com",
+    "cloudquotas.googleapis.com",
     "cloudresourcemanager.googleapis.com",
     "cloudscheduler.googleapis.com",
     "cloudtasks.googleapis.com",
@@ -222,6 +242,7 @@ module "project-services" {
     "datastream.googleapis.com",
     "deploymentmanager.googleapis.com",
     "dialogflow.googleapis.com",
+    "discoveryengine.googleapis.com",
     "dlp.googleapis.com",
     "dns.googleapis.com",
     "documentai.googleapis.com",
@@ -277,6 +298,7 @@ module "project-services" {
     "oslogin.googleapis.com",
     "parallelstore.googleapis.com",
     "privateca.googleapis.com",
+    "privilegedaccessmanager.googleapis.com",
     "pubsub.googleapis.com",
     "pubsublite.googleapis.com",
     "publicca.googleapis.com",
