@@ -361,6 +361,8 @@ properties:
 
           A duration in seconds with up to nine fractional digits, ending with 's'. Example: "3.5s".
         default_from_api: true
+        validation: !ruby/object:Provider::Terraform::Validation
+          regex: '^[0-9]+(?:\.[0-9]{1,9})?s$'
       - !ruby/object:Api::Type::String
         name: 'serviceAccount'
         description: |-
@@ -826,6 +828,7 @@ properties:
         name: 'maxInstanceRequestConcurrency'
         description: |-
           Sets the maximum number of requests that each serving instance can receive.
+          If not specified or 0, defaults to 80 when requested CPU >= 1 and defaults to 1 when requested CPU < 1.
         default_from_api: true
       - !ruby/object:Api::Type::Boolean
         name: 'sessionAffinity'
