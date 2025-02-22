@@ -74,6 +74,10 @@ tpgtools:
 	cd tpgtools;\
 		go run . --output $(OUTPUT_PATH) --version $(VERSION) $(tpgtools_compile)
 
+tflint:
+	cd mmv1;\
+		go run . --output $(OUTPUT_PATH) --version ga --provider tflint
+
 clean-provider:
 	cd $(OUTPUT_PATH);\
 		go mod download;\

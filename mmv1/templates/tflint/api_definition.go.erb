@@ -1,9 +1,0 @@
-<%= lines(autogen_notice(:go, pwd)) -%>
-
-package magicmodules
-
-var APIDefinition = map[string]string{
-	<% @resource_url.each do |name, url| -%>
-	"<%= name -%>": "<%= url %>",
-	<% end -%>
-}

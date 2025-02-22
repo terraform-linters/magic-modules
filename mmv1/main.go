@@ -331,6 +331,8 @@ func setProvider(forceProvider, version string, productApi *api.Product, startTi
 		return provider.NewTerraformGoogleConversionV6(productApi, version, startTime)
 	case "oics":
 		return provider.NewTerraformOiCS(productApi, version, startTime)
+	case "tflint":
+		return provider.NewTFLint(productApi, version, startTime)
 	default:
 		return provider.NewTerraform(productApi, version, startTime)
 	}
