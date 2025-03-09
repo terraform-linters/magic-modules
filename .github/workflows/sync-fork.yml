@@ -4,13 +4,15 @@ on:
     - cron: '0 0 * * 0'
   workflow_dispatch: # Enables on-demand/manual triggering
 
-permissions:
-  contents: write
-
 jobs:
   sync:
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/create-github-app-token@v1
+        id: app-token
+        with:
+          app-id: ${{ vars.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
       - run: gh repo sync ${{github.repository}}
         env:
-          GH_TOKEN: ${{secrets.GITHUB_TOKEN}}
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
