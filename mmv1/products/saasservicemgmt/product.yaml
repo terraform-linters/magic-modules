@@ -12,16 +12,12 @@
 # limitations under the License.
 
 ---
-name: 'TPU'
-display_name: 'Cloud TPU'
-versions:
-  - name: 'ga'
-    base_url: 'https://tpu.googleapis.com/v1/'
+name: SaasRuntime
+display_name: SaaS Runtime
 scopes:
-  - 'https://www.googleapis.com/auth/cloud-platform'
-async:
-  type: "OpAsync"
-  operation:
-    base_url: '{{op_id}}'
-  result:
-    resource_inside_response: true
+  - https://www.googleapis.com/auth/cloud-platform
+versions:
+  - name: "beta"
+    base_url: https://saasservicemgmt.googleapis.com/v1beta1/
+caibaseurl: ""
+resourceswithcaiassettype: {}
