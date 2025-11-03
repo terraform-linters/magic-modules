@@ -23,7 +23,7 @@ func NewTFLint(product *api.Product, versionName string, startTime time.Time) TF
 	}
 }
 
-func (t TFLint) Generate(outputFolder, productPath, resourceToGenerate string, generateCode, generateDocs bool) {
+func (t TFLint) Generate(outputFolder, resourceToGenerate string, generateCode, generateDocs bool) {
 	if err := os.MkdirAll(outputFolder, os.ModePerm); err != nil {
 		log.Println(fmt.Errorf("error creating output directory %v: %v", outputFolder, err))
 	}
