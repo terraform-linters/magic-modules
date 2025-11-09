@@ -15,12 +15,15 @@
 package magicmodules
 
 import (
+{{- if $.Prop.Sensitive }}
 	"fmt"
-	"regexp"
+{{- end }}
 
 	"github.com/terraform-linters/tflint-plugin-sdk/hclext"
 	"github.com/terraform-linters/tflint-plugin-sdk/tflint"
+{{- if $.Prop.IsA "Enum" }}
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/validation"
+{{- end }}
 )
 
 // {{ $.RuleName -}}Rule checks the pattern is valid
