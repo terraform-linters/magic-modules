@@ -124,6 +124,7 @@ clean-tgc:
 		find ./tfplan2cai/test/** -type f -exec git rm {} \; > /dev/null;\
 		rm -rf ./pkg/*;\
 		rm -rf ./test/*;\
+		rm -rf ./cmd/*;\
 
 tgc:
 	cd mmv1;\
