@@ -154,7 +154,7 @@ func newProvider(providerName, version string, productApi *api.Product, startTim
 	case "oics":
 		return provider.NewTerraformOiCS(productApi, version, startTime, fsys)
 	case "tflint":
-		return provider.NewTFLint(productApi, version, startTime)
+		return provider.NewTFLint(productApi, version, startTime, fsys)
 	default:
 		return provider.NewTerraform(productApi, version, startTime, fsys)
 	}

@@ -2,6 +2,7 @@ package provider
 
 import (
 	"fmt"
+	"io/fs"
 	"log"
 	"net/url"
 	"os"
@@ -17,9 +18,9 @@ type TFLint struct {
 	Terraform
 }
 
-func NewTFLint(product *api.Product, versionName string, startTime time.Time) TFLint {
+func NewTFLint(product *api.Product, versionName string, startTime time.Time, templateFS fs.FS) TFLint {
 	return TFLint{
-		Terraform: NewTerraform(product, versionName, startTime),
+		Terraform: NewTerraform(product, versionName, startTime, templateFS),
 	}
 }
 
@@ -45,7 +46,7 @@ func (t *TFLint) GenerateObjects(outputFolder, resourceToGenerate string, genera
 }
 
 func (t *TFLint) GenerateObject(object api.Resource, outputFolder, productPath string, generateCode, generateDocs bool) {
-	templateData := NewTemplateData(outputFolder, t.TargetVersionName)
+	templateData := NewTemplateData(outputFolder, t.TargetVersionName, t.templateFS)
 
 	if !object.IsExcluded() {
 		log.Printf("Generating %s rules", object.Name)
@@ -106,7 +107,7 @@ func (t TFLint) CopyCommonFiles(outputFolder string, generateCode, generateDocs 
 }
 
 func (t TFLint) CompileCommonFiles(outputFolder string, products []*api.Product, overridePath string) {
-	templateData := NewTemplateData(outputFolder, t.TargetVersionName)
+	templateData := NewTemplateData(outputFolder, t.TargetVersionName, t.templateFS)
 
 	type resourceURL struct {
 		Name string
