@@ -17,6 +17,7 @@ import (
 	"io/fs"
 	"log"
 	"maps"
+	"os"
 	"path/filepath"
 	"regexp"
 	"slices"
@@ -392,12 +393,6 @@ type TGCResource struct {
 	// and compute.googleapis.com/GlobalAddress has GlobalAddress for CaiResourceKind.
 	// But they have the same api resource type: address
 	CaiResourceKind string `yaml:"cai_resource_kind,omitempty"`
-
-	// If true, the Terraform custom encoder is not applied during tfplan2cai
-	TGCIgnoreTerraformEncoder bool `yaml:"tgc_ignore_terraform_encoder,omitempty"`
-
-	// If true, the Terraform custom decoder is not applied during cai2hcl
-	TGCIgnoreTerraformDecoder bool `yaml:"tgc_ignore_terraform_decoder,omitempty"`
 
 	// [Optional] The parameter that uniquely identifies the resource.
 	// Generally, it shouldn't be set when the identity can be decided.
@@ -2543,6 +2538,22 @@ func (r Resource) TGCTestIgnorePropertiesToStrings() []string {
 
 	if r.IgnoreCaiAssetName() {
 		props = append(props, "ASSETNAME")
+	}
+
+	if r.CustomCode.ExtraSchemaEntry != "" {
+		b, err := os.ReadFile(r.CustomCode.ExtraSchemaEntry)
+
+		if err != nil {
+			log.Printf("Warning: failed to read extra_schema_entry file %s: %v", r.CustomCode.ExtraSchemaEntry, err)
+		} else {
+			re := regexp.MustCompile(`"([^"]+)"\s*:`)
+			matches := re.FindAllStringSubmatch(string(b), -1)
+			for _, match := range matches {
+				if len(match) > 1 {
+					props = append(props, match[1])
+				}
+			}
+		}
 	}
 
 	slices.Sort(props)
