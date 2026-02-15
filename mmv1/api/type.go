@@ -479,29 +479,34 @@ func (t *Type) SetDefault(r *Resource) {
 	}
 }
 
-func (t *Type) Validate(rName string) {
+func (t *Type) Validate(rName string) (es []error) {
 	if t.Name == "" {
-		log.Fatalf("Missing `name` for proprty with type %s in resource %s", t.Type, rName)
+		es = append(es, fmt.Errorf("Missing `name` for property with type %s in resource %s", t.Type, rName))
+	}
+
+	// Check type is valid. Also allow empty as it's currently used in unit tests.
+	if !slices.Contains([]string{"", "Boolean", "Double", "Integer", "String", "Time", "Enum", "ResourceRef", "NestedObject", "Array", "KeyValuePairs", "KeyValueLabels", "KeyValueTerraformLabels", "KeyValueEffectiveLabels", "KeyValueAnnotations", "Map", "Fingerprint"}, t.Type) {
+		es = append(es, fmt.Errorf("unknown type %q for property %q in resource %s", t.Type, t.Name, rName))
 	}
 
 	if t.Output && t.Required {
-		log.Fatalf("Property %s cannot be output and required at the same time in resource %s.", t.Name, rName)
+		es = append(es, fmt.Errorf("Property %s cannot be output and required at the same time in resource %s.", t.Name, rName))
 	}
 
 	if t.DefaultFromApi && t.DefaultValue != nil {
-		log.Fatalf("'default_value' and 'default_from_api' cannot be both set in resource %s", rName)
+		es = append(es, fmt.Errorf("'default_value' and 'default_from_api' cannot be both set in resource %s", rName))
 	}
 
 	if (t.WriteOnlyLegacy || t.WriteOnly) && (t.DefaultFromApi || t.Output) {
-		log.Fatalf("Property %s cannot be write_only and default_from_api or output at the same time in resource %s", t.Name, rName)
+		es = append(es, fmt.Errorf("Property %s cannot be write_only and default_from_api or output at the same time in resource %s", t.Name, rName))
 	}
 
 	if (t.WriteOnlyLegacy || t.WriteOnly) && t.Sensitive {
-		log.Fatalf("Property %s cannot be write_only and sensitive at the same time in resource %s", t.Name, rName)
+		es = append(es, fmt.Errorf("Property %s cannot be write_only and sensitive at the same time in resource %s", t.Name, rName))
 	}
 
 	if t.KeyDescription != "" {
-		log.Fatalf("Property %s key_description can't be set in resource %s; it's deprecated", t.Name, rName)
+		es = append(es, fmt.Errorf("Property %s key_description can't be set in resource %s; it's deprecated", t.Name, rName))
 	}
 
 	t.validateLabelsField()
@@ -525,6 +530,8 @@ func (t *Type) Validate(rName string) {
 		}
 	default:
 	}
+
+	return es
 }
 
 // TODO rewrite: add validations
@@ -535,7 +542,6 @@ func (t *Type) Validate(rName string) {
 // check_at_least_one_of
 // check_exactly_one_of
 // check_required_with
-// check the allowed types for Type field
 // check the allowed fields for each type, for example, KeyName is only allowed for Map
 
 // Returns a slice of Terraform field names representing where the field is nested within the parent resource.
@@ -607,7 +613,7 @@ func (t *Type) GetPrefix() string {
 		if t.ParentMetadata == nil {
 			nestedPrefix := ""
 			// TODO: Use the nestedPrefix for tgc provider to be consistent with terraform provider
-			if t.ResourceMetadata.NestedQuery != nil && !strings.Contains(t.ResourceMetadata.Compiler, "terraformgoogleconversion") {
+			if t.ResourceMetadata.NestedQuery != nil && !strings.Contains(t.ResourceMetadata.ProductMetadata.Compiler, "terraformgoogleconversion") {
 				nestedPrefix = "Nested"
 			}
 
