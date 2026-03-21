@@ -123,9 +123,9 @@ func (t TFLint) CompileCommonFiles(outputFolder string, products []*api.Product,
 
 	for _, product := range products {
 		var productURL string
-		u, err := url.Parse(product.BaseUrl)
+		u, err := url.Parse(product.Version.BaseUrl)
 		if err != nil {
-			log.Println(fmt.Errorf("cannot parse product.BaseUrl: %v", err))
+			log.Println(fmt.Errorf("cannot parse product.Version.BaseUrl: %v", err))
 		}
 		if u != nil {
 			productURL = u.Host
