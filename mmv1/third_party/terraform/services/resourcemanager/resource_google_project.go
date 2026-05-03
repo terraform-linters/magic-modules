@@ -17,6 +17,7 @@ import (
 
 	"github.com/hashicorp/terraform-provider-google/google/registry"
 	tpgcompute "github.com/hashicorp/terraform-provider-google/google/services/compute"
+	rmClient "github.com/hashicorp/terraform-provider-google/google/services/resourcemanager/client"
 	tpgserviceusage "github.com/hashicorp/terraform-provider-google/google/services/serviceusage"
 	"github.com/hashicorp/terraform-provider-google/google/tpgresource"
 	transport_tpg "github.com/hashicorp/terraform-provider-google/google/transport"
@@ -182,7 +183,7 @@ func resourceGoogleProjectCreate(d *schema.ResourceData, meta interface{}) error
 	var op *cloudresourcemanager.Operation
 	err = transport_tpg.Retry(transport_tpg.RetryOptions{
 		RetryFunc: func() (reqErr error) {
-			op, reqErr = config.NewResourceManagerClient(userAgent).Projects.Create(project).Do()
+			op, reqErr = rmClient.NewClient(config, userAgent).Projects.Create(project).Do()
 			return reqErr
 		},
 		Timeout: d.Timeout(schema.TimeoutCreate),
@@ -503,7 +504,7 @@ func updateProject(config *transport_tpg.Config, d *schema.ResourceData, project
 	var newProj *cloudresourcemanager.Project
 	if err := transport_tpg.Retry(transport_tpg.RetryOptions{
 		RetryFunc: func() (updateErr error) {
-			newProj, updateErr = config.NewResourceManagerClient(userAgent).Projects.Update(desiredProject.ProjectId, desiredProject).Do()
+			newProj, updateErr = rmClient.NewClient(config, userAgent).Projects.Update(desiredProject.ProjectId, desiredProject).Do()
 			return updateErr
 		},
 		Timeout: d.Timeout(schema.TimeoutUpdate),
@@ -533,7 +534,7 @@ func resourceGoogleProjectDelete(d *schema.ResourceData, meta interface{}) error
 		pid := parts[len(parts)-1]
 		if err := transport_tpg.Retry(transport_tpg.RetryOptions{
 			RetryFunc: func() error {
-				_, delErr := config.NewResourceManagerClient(userAgent).Projects.Delete(pid).Do()
+				_, delErr := rmClient.NewClient(config, userAgent).Projects.Delete(pid).Do()
 				return delErr
 			},
 			Timeout: d.Timeout(schema.TimeoutDelete),
@@ -578,7 +579,7 @@ func forceDeleteComputeNetwork(d *schema.ResourceData, config *transport_tpg.Con
 
 	// Read the network from the API so we can get the correct self link format. We can't construct it from the
 	// base path because it might not line up exactly (compute.googleapis.com vs www.googleapis.com)
-	net, err := config.NewComputeClient(userAgent).Networks.Get(projectId, networkName).Do()
+	net, err := tpgcompute.NewClient(config, userAgent).Networks.Get(projectId, networkName).Do()
 	if err != nil {
 		return err
 	}
@@ -586,7 +587,7 @@ func forceDeleteComputeNetwork(d *schema.ResourceData, config *transport_tpg.Con
 	token := ""
 	for paginate := true; paginate; {
 		filter := fmt.Sprintf("network eq %s", net.SelfLink)
-		resp, err := config.NewComputeClient(userAgent).Firewalls.List(projectId).Filter(filter).Do()
+		resp, err := tpgcompute.NewClient(config, userAgent).Firewalls.List(projectId).Filter(filter).Do()
 		if err != nil {
 			return errwrap.Wrapf("Error listing firewall rules in proj: {{err}}", err)
 		}
@@ -594,7 +595,7 @@ func forceDeleteComputeNetwork(d *schema.ResourceData, config *transport_tpg.Con
 		log.Printf("[DEBUG] Found %d firewall rules in %q network", len(resp.Items), networkName)
 
 		for _, firewall := range resp.Items {
-			op, err := config.NewComputeClient(userAgent).Firewalls.Delete(projectId, firewall.Name).Do()
+			op, err := tpgcompute.NewClient(config, userAgent).Firewalls.Delete(projectId, firewall.Name).Do()
 			if err != nil {
 				return errwrap.Wrapf("Error deleting firewall: {{err}}", err)
 			}
@@ -660,7 +661,7 @@ func updateProjectBillingAccount(d *schema.ResourceData, config *transport_tpg.C
 }
 
 func deleteComputeNetwork(project, network, userAgent string, config *transport_tpg.Config) error {
-	op, err := config.NewComputeClient(userAgent).Networks.Delete(
+	op, err := tpgcompute.NewClient(config, userAgent).Networks.Delete(
 		project, network).Do()
 	if err != nil {
 		return errwrap.Wrapf("Error deleting network: {{err}}", err)
@@ -680,7 +681,7 @@ func readGoogleProject(d *schema.ResourceData, config *transport_tpg.Config, use
 	pid := parts[len(parts)-1]
 	err := transport_tpg.Retry(transport_tpg.RetryOptions{
 		RetryFunc: func() (reqErr error) {
-			p, reqErr = config.NewResourceManagerClient(userAgent).Projects.Get(pid).Do()
+			p, reqErr = rmClient.NewClient(config, userAgent).Projects.Get(pid).Do()
 			return reqErr
 		},
 		Timeout: d.Timeout(schema.TimeoutRead),
