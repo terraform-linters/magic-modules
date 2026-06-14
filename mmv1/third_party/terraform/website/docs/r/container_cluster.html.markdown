@@ -563,6 +563,11 @@ Fleet configuration for the cluster. Structure is [documented below](#nested_fle
 
 * `pod_snapshot_config` - (Optional) The status of the Pod Snapshot addon. It is disabled by default. Set `enabled = true` to enable.
 
+* `slurm_operator_config` - (Optional) The status of the Slurm Operator addon,
+    which creates slurm related CRDs and KCP pods to manage them.
+    Defaults to disabled for Standard clusters; set `enabled = true` to enable.
+    It can not be enabled for Autopilot clusters.
+
 This example `addons_config` disables two addons:
 
 ```hcl
@@ -1152,6 +1157,8 @@ windows_node_config {
 
 * `containerd_config` - (Optional) Parameters to customize containerd runtime. Structure is [documented below](#nested_containerd_config).
 
+* `node_image_config` - (Optional) The node image configuration to use for this node pool. Structure is [documented below](#nested_node_image_config).
+
 * `node_group` - (Optional) Setting this field will assign instances of this pool to run on the specified node group. This is useful for running workloads on [sole tenant nodes](https://cloud.google.com/compute/docs/nodes/sole-tenant-nodes).
 
 * `sole_tenant_config` - (Optional)  Allows specifying multiple [node affinities](https://cloud.google.com/compute/docs/nodes/sole-tenant-nodes#node_affinity_and_anti-affinity) useful for running workloads on [sole tenant nodes](https://cloud.google.com/kubernetes-engine/docs/how-to/sole-tenancy). Structure is [documented below](#nested_sole_tenant_config).
@@ -1202,6 +1209,12 @@ sole_tenant_config {
 * `operator` (Required) - Specifies affinity or anti-affinity. Accepted values are `"IN"` or `"NOT_IN"`
 
 * `values` (Required) - List of node affinity label values as strings.
+
+<a name="nested_node_image_config"></a>The `node_image_config` block supports:
+
+* `image` (Optional) - The name of the image to use for this node.
+
+* `image_project` (Optional) - The project containing the image to use for this node.
 
 <a name="nested_advanced_machine_features"></a>The `advanced_machine_features` block supports:
 
