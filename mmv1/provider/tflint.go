@@ -98,6 +98,11 @@ func (t *TFLint) generateRuleName(object api.Resource, prop *api.Type) string {
 }
 
 func (t TFLint) CopyCommonFiles(outputFolder string, generateCode, generateDocs bool) {
+	// Common files are shared by all products, so only copy them once per provider
+	// (when called with a nil product) rather than once per product.
+	if t.Product != nil {
+		return
+	}
 	log.Printf("Copying common files for %s", ProviderName(t))
 
 	files := map[string]string{
@@ -107,6 +112,11 @@ func (t TFLint) CopyCommonFiles(outputFolder string, generateCode, generateDocs 
 }
 
 func (t TFLint) CompileCommonFiles(outputFolder string, products []*api.Product, overridePath string) {
+	// provider.go and api_definition.go list rules across all products, so only
+	// compile them once per provider (when called with a nil product).
+	if t.Product != nil {
+		return
+	}
 	templateData := NewTemplateData(outputFolder, t.TargetVersionName, t.templateFS)
 
 	type resourceURL struct {
@@ -131,8 +141,10 @@ func (t TFLint) CompileCommonFiles(outputFolder string, products []*api.Product,
 			productURL = u.Host
 		}
 
+		// t.Version is unset when called without a product, so resolve the version per product.
+		version := product.VersionObjOrClosest(t.TargetVersionName)
 		for _, object := range product.Objects {
-			object.ExcludeIfNotInVersion(&t.Version)
+			object.ExcludeIfNotInVersion(version)
 			if object.IsExcluded() {
 				continue
 			}
