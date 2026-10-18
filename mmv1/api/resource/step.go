@@ -23,7 +23,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
-	"text/template"
+	"text/template" // NOLINT
 
 	"github.com/GoogleCloudPlatform/magic-modules/mmv1/google"
 	"github.com/golang/glog"
@@ -142,6 +142,9 @@ func (s *Step) TestDependencies(resourcePrefixPkgMap map[string]string) map[stri
 	for _, val := range s.TestContextVars {
 		if strings.HasPrefix(val, "compute.") {
 			deps["services/compute"] = ""
+		}
+		if strings.HasPrefix(val, "container.") {
+			deps["services/container"] = ""
 		}
 		if strings.HasPrefix(val, "kms.") {
 			deps["services/kms"] = ""

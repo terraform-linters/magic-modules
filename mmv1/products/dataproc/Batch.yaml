@@ -30,6 +30,11 @@ delete_url: projects/{{project}}/locations/{{location}}/batches/{{batch_id}}
 collection_url_key: batches
 import_format:
   - projects/{{project}}/locations/{{location}}/batches/{{batch_id}}
+sweeper:
+  url_substitutions:
+    - region: us-central1
+    - region: us-west1
+    - region: us-east1
 timeouts:
   insert_minutes: 10
   update_minutes: 20
@@ -347,6 +352,8 @@ properties:
               type: String
           - name: kmsKey
             type: String
+            # kmsKey is not present in CAI asset
+            is_missing_in_cai: true
             description: |
               The Cloud KMS key to use for encryption.
           - name: ttl
