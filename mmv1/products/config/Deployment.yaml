@@ -50,6 +50,7 @@ samples:
       - name: config_deployment_basic
         resource_id_vars:
           deployment_name: my-deployment
+          project: my-project
           service_account_email: my-service-account@my-project.iam.gserviceaccount.com
 virtual_fields:
   - name: force_destroy
@@ -134,6 +135,15 @@ properties:
     enum_values:
       - ENABLED
       - ENFORCED
+  - name: providerConfig
+    type: NestedObject
+    description: This field specifies the provider configurations.
+    properties:
+      - name: sourceType
+        type: Enum
+        description: ProviderSource specifies the source type of the provider.
+        enum_values:
+          - SERVICE_MAINTAINED
   # Output only fields
   - name: state
     type: String

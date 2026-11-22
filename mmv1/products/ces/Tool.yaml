@@ -46,7 +46,6 @@ samples:
     steps:
       - name: "ces_tool_data_store_tool_engine_source_basic"
         resource_id_vars:
-          tool_display_name: 'ces_tool_data_store_tool_engine_source_basic'
           app_display_name: 'my-app'
           tool_id: 'ces_tool_basic2'
           app_id: 'app-id'
@@ -57,7 +56,6 @@ samples:
     steps:
       - name: "ces_tool_google_search_tool_basic"
         resource_id_vars:
-          tool_display_name: 'ces_tool_google_search_tool_basic'
           app_display_name: 'my-app'
           tool_id: 'ces_tool_basic3'
           app_id: 'app-id'
@@ -66,7 +64,6 @@ samples:
     steps:
       - name: "ces_tool_python_function_basic"
         resource_id_vars:
-          tool_display_name: 'ces_tool_python_function_basic'
           app_display_name: 'my-app'
           tool_id: 'ces_tool_basic4'
           app_id: 'app-id'
@@ -705,12 +702,7 @@ properties:
               https://cloud.google.com/generative-ai-app-builder/docs/filter-search-metadata
       - name: filterParameterBehavior
         type: Enum
-        description: |-
-          Optional. The filter parameter behavior.
-          Possible values:
-          FILTER_PARAMETER_BEHAVIOR_UNSPECIFIED
-          ALWAYS_INCLUDE
-          NEVER_INCLUDE
+        description: Optional. The filter parameter behavior.
         enum_values:
           - 'FILTER_PARAMETER_BEHAVIOR_UNSPECIFIED'
           - 'ALWAYS_INCLUDE'
@@ -778,13 +770,7 @@ properties:
                         responses that are more creative.
                     - name: thinkingLevel
                       type: Enum
-                      description: |-
-                        The thinking level of the model.
-                        Possible values:
-                        DEFAULT
-                        LOW
-                        MEDIUM
-                        HIGH
+                      description: The thinking level of the model.
                       enum_values:
                         - 'DEFAULT'
                         - 'LOW'
@@ -832,13 +818,7 @@ properties:
                         responses that are more creative.
                     - name: thinkingLevel
                       type: Enum
-                      description: |-
-                        The thinking level of the model.
-                        Possible values:
-                        DEFAULT
-                        LOW
-                        MEDIUM
-                        HIGH
+                      description: The thinking level of the model.
                       enum_values:
                         - 'DEFAULT'
                         - 'LOW'
@@ -879,12 +859,7 @@ properties:
     properties:
       - name: corpusType
         type: Enum
-        description: |-
-          Optional. The type of the corpus. Default is FULLY_MANAGED.
-          Possible values:
-          CORPUS_TYPE_UNSPECIFIED
-          USER_OWNED
-          FULLY_MANAGED
+        description: Optional. The type of the corpus. Default is FULLY_MANAGED.
         enum_values:
           - 'CORPUS_TYPE_UNSPECIFIED'
           - 'USER_OWNED'
@@ -1287,7 +1262,6 @@ properties:
               token](https://cloud.google.com/docs/authentication/token-types#id) generated
               from service agent.
             allow_empty_object: true
-            send_empty_value: true
             output: true
             properties: [] # Explicitly show no properties
       - name: description
@@ -1622,7 +1596,6 @@ properties:
               token](https://cloud.google.com/docs/authentication/token-types#id) generated
               from service agent.
             allow_empty_object: true
-            send_empty_value: true
             output: true
             properties: [] # Explicitly show no properties
       - name: inputVariableMapping
@@ -1689,22 +1662,7 @@ properties:
         description: Optional. The description of the widget tool.
       - name: widgetType
         type: Enum
-        description: |-
-          Optional. The type of the widget tool. If not specified, the default type will be CUSTOMIZED.
-          Possible values:
-          WIDGET_TYPE_UNSPECIFIED
-          CUSTOM
-          PRODUCT_CAROUSEL
-          PRODUCT_DETAILS
-          QUICK_ACTIONS
-          PRODUCT_COMPARISON
-          ADVANCED_PRODUCT_DETAILS
-          SHORT_FORM
-          OVERALL_SATISFACTION
-          ORDER_SUMMARY
-          APPOINTMENT_DETAILS
-          APPOINTMENT_SCHEDULER
-          CONTACT_FORM
+        description: Optional. The type of the widget tool. If not specified, the default type will be CUSTOMIZED.
         enum_values:
           - 'WIDGET_TYPE_UNSPECIFIED'
           - 'CUSTOM'
@@ -1761,12 +1719,7 @@ properties:
                 output: true
           - name: mode
             type: Enum
-            description: |-
-              Optional. The mode of the data mapping.
-              Possible values:
-              MODE_UNSPECIFIED
-              FIELD_MAPPING
-              PYTHON_SCRIPT
+            description: Optional. The mode of the data mapping.
             enum_values:
               - 'MODE_UNSPECIFIED'
               - 'FIELD_MAPPING'
@@ -1777,13 +1730,7 @@ properties:
         properties:
           - name: type
             type: Enum
-            description: |-
-              Optional. The strategy for providing the text response.
-              Possible values:
-              TYPE_UNSPECIFIED
-              NONE
-              LLM_GENERATED
-              STATIC
+            description: Optional. The strategy for providing the text response.
             enum_values:
               - 'TYPE_UNSPECIFIED'
               - 'NONE'

@@ -46,7 +46,6 @@ samples:
         resource_id_vars:
           address_group: 'address-group'
           fw_policy: 'fw-policy'
-          network: 'network'
           tag_key: 'tag-key'
           tag_value: 'tag-value'
           security_profile_group: 'spg'
@@ -567,7 +566,6 @@ properties:
             If logging is enabled, logs will be exported to the
             configured export destination in Stackdriver.
           output: true
-          send_empty_value: true
         - name: 'targetServiceAccounts'
           type: Array
           description: |

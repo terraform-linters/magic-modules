@@ -45,6 +45,18 @@ var (
 	looseFieldMarkerRegexp = regexp.MustCompile(`{{\s*([^}]+)\s*}}`)
 	// "key": entries in an extra_schema_entry file.
 	schemaEntryKeyRegexp = regexp.MustCompile(`"([^"]+)"\s*:`)
+	// Internal-only Google URLs, shortlinks, and source paths disallowed in public docs.
+	internalRefPatterns = []struct {
+		label string
+		re    *regexp.Regexp
+	}{
+		{"corp.google.com", regexp.MustCompile(`(?i)(?:^|[^a-z0-9-])corp\.google\.com\b`)},
+		{"goto.google.com", regexp.MustCompile(`(?i)(?:^|[^a-z0-9-])goto\.google\.com\b`)},
+		{"go/", regexp.MustCompile(`(?i)(?:https?://go/|(?:^|[^a-z0-9_./:-])go/[a-z0-9][a-z0-9._-]*)`)},
+		{"b/", regexp.MustCompile(`(?i)(?:https?://b/[0-9]+|(?:^|[^a-z0-9_./:-])b/[0-9]{5,}\b)`)},
+		{"//depot/", regexp.MustCompile(`(?i)//depot/`)},
+		{"google3/", regexp.MustCompile(`(?i)\bgoogle3/`)},
+	}
 )
 
 type Resource struct {
@@ -603,6 +615,29 @@ func (r *Resource) Validate() (es []error) {
 		es = append(es, fmt.Errorf("missing `description` for resource %s", r.Name))
 	}
 
+	for _, f := range []struct{ name, val string }{
+		{"description", r.Description},
+		{"deprecation_message", r.DeprecationMessage},
+		{"references.api", r.References.Api},
+		{"docs.warning", r.Docs.Warning},
+		{"docs.note", r.Docs.Note},
+		{"docs.required_properties", r.Docs.RequiredProperties},
+		{"docs.optional_properties", r.Docs.OptionalProperties},
+		{"docs.write_only_properties", r.Docs.WriteOnlyProperties},
+		{"docs.attributes", r.Docs.Attributes},
+	} {
+		if err := ValidateNoInternalRefs(f.val, "resource %s `%s`", r.Name, f.name); err != nil {
+			es = append(es, err)
+		}
+	}
+	for _, k := range slices.Sorted(maps.Keys(r.References.Guides)) {
+		if err := ValidateNoInternalRefs(k, "resource %s `references.guides[%q]`", r.Name, k); err != nil {
+			es = append(es, err)
+		} else if err := ValidateNoInternalRefs(r.References.Guides[k], "resource %s `references.guides[%q]`", r.Name, k); err != nil {
+			es = append(es, err)
+		}
+	}
+
 	if !r.Exclude {
 		// Ensures we have all properties defined
 		for _, i := range r.Identity {
@@ -666,6 +701,19 @@ func (r *Resource) Validate() (es []error) {
 	}
 
 	return es
+}
+
+// ValidateNoInternalRefs rejects internal-only Google URLs, shortlinks, and source paths in public documentation text.
+func ValidateNoInternalRefs(text, contextFormat string, args ...any) error {
+	if text == "" {
+		return nil
+	}
+	for _, p := range internalRefPatterns {
+		if p.re.MatchString(text) {
+			return fmt.Errorf("%s must not contain internal Google reference %q; replace with a public link or move to a comment", fmt.Sprintf(contextFormat, args...), p.label)
+		}
+	}
+	return nil
 }
 
 // ====================
@@ -2010,7 +2058,7 @@ func (r Resource) FirstTestConfig() TestConfig {
 			continue
 		}
 		for _, step := range sample.Steps {
-			if r.ProductMetadata.VersionObjOrClosest(r.TargetVersionName).CompareTo(r.ProductMetadata.VersionObjOrClosest(sample.MinVersion)) >= 0 {
+			if r.ProductMetadata.VersionObjOrClosest(r.TargetVersionName).CompareTo(r.ProductMetadata.VersionObjOrClosest(step.MinVersion)) >= 0 {
 				return TestConfig{
 					Sample: sample,
 					Step:   step,
@@ -2029,7 +2077,7 @@ func (r Resource) FirstRunnableTestConfig() TestConfig {
 			continue
 		}
 		for _, step := range sample.Steps {
-			if r.ProductMetadata.VersionObjOrClosest(r.TargetVersionName).CompareTo(r.ProductMetadata.VersionObjOrClosest(sample.MinVersion)) >= 0 {
+			if r.ProductMetadata.VersionObjOrClosest(r.TargetVersionName).CompareTo(r.ProductMetadata.VersionObjOrClosest(step.MinVersion)) >= 0 {
 				return TestConfig{
 					Sample: sample,
 					Step:   step,
@@ -2320,34 +2368,97 @@ func (r Resource) IsExcluded() bool {
 }
 
 func (r Resource) TestSamples() []*resource.Sample {
-	return google.Reject(google.Reject(r.Samples, func(s *resource.Sample) bool {
-		return s.ExcludeTest
-	}), func(s *resource.Sample) bool {
-		return s.MinVersion != "" && slices.Index(product.ORDER, r.TargetVersionName) < slices.Index(product.ORDER, s.MinVersion)
+	return google.Reject(r.Samples, func(s *resource.Sample) bool {
+		if s.ExcludeTest {
+			return true
+		}
+		if s.MinVersion != "" && slices.Index(product.ORDER, r.TargetVersionName) < slices.Index(product.ORDER, s.MinVersion) {
+			return true
+		}
+		return len(s.TestSteps()) == 0
 	})
 }
 
+func disambiguateStepSlug(sampleName, stepName string, activeIdx int, seenCamel map[string]string) string {
+	if activeIdx == 0 && sampleName != "" {
+		if _, taken := seenCamel[google.Camelize(sampleName, "lower")]; !taken {
+			return sampleName
+		}
+	}
+	base := stepName
+	if sampleName != "" && sampleName != stepName {
+		base = sampleName
+	}
+	candidate := fmt.Sprintf("%s_step%d", base, activeIdx+1)
+	if _, taken := seenCamel[google.Camelize(candidate, "lower")]; !taken {
+		return candidate
+	}
+	for n := 2; ; n++ {
+		c := fmt.Sprintf("%s_%d", candidate, n)
+		if _, taken := seenCamel[google.Camelize(c, "lower")]; !taken {
+			return c
+		}
+	}
+}
+
 func (r Resource) TestSampleSetUp(sysfs fs.FS) {
-	res := make(map[string]string)
 	for _, sample := range r.Samples {
 		sample.TargetVersionName = r.TargetVersionName
+		if len(sample.Steps) == 0 {
+			sample.Steps = []*resource.Step{{}}
+		}
+		for _, st := range sample.Steps {
+			if st.Name == "" {
+				st.Name = sample.Name
+			}
+		}
+	}
+	var firstStep *resource.Step
+	var iamSampleBody string
+	if r.IamPolicy != nil && !r.IamPolicy.Exclude && r.IamPolicy.SampleConfigBody != "" {
+		if b, err := fs.ReadFile(sysfs, r.IamPolicy.SampleConfigBody); err == nil {
+			firstStep = r.FirstTestConfig().Step
+			iamSampleBody = string(b)
+		}
+	}
+	seenHCLByCamelSlug := make(map[string]string)
+	slugByBaseAndHCL := make(map[string]string)
+	packageName := filepath.Base(filepath.Dir(r.SourceYamlFile))
+	for _, sample := range r.Samples {
+		sample.NewConfigFuncs = nil
 		if sample.MinVersion != "" && slices.Index(product.ORDER, r.TargetVersionName) < slices.Index(product.ORDER, sample.MinVersion) {
 			continue
 		}
+		activeIdx := 0
 		for _, step := range sample.Steps {
 			if step.MinVersion != "" && slices.Index(product.ORDER, r.TargetVersionName) < slices.Index(product.ORDER, step.MinVersion) {
 				continue
 			}
 			step.PrimaryResourceId = sample.PrimaryResourceId
-			packageName := filepath.Base(filepath.Dir(r.SourceYamlFile))
+			step.InheritFromSample(sample)
 			if step.ConfigPath == "" {
 				step.ConfigPath = fmt.Sprintf("templates/terraform/samples/services/%s/%s.tf.tmpl", packageName, step.Name)
 			}
 			step.SetHCLText(sysfs)
-			configName := step.Name
-			if _, ok := res[step.Name]; !ok {
-				res[configName] = sample.Name
-				sample.NewConfigFuncs = append(sample.NewConfigFuncs, step)
+			if step == firstStep {
+				step.IamHCLText = iamSampleBody
+			}
+			if !sample.ExcludeTest {
+				camelBase := google.Camelize(step.Name, "lower")
+				dedupKey := camelBase + "\x00" + step.TestHCLText
+				if existingSlug, ok := slugByBaseAndHCL[dedupKey]; ok {
+					step.StepSlug = existingSlug
+				} else {
+					slug := step.Name
+					if _, taken := seenHCLByCamelSlug[google.Camelize(slug, "lower")]; taken {
+						slug = disambiguateStepSlug(sample.Name, step.Name, activeIdx, seenHCLByCamelSlug)
+					}
+					step.StepSlug = slug
+					seenHCLByCamelSlug[google.Camelize(slug, "lower")] = step.TestHCLText
+					slugByBaseAndHCL[dedupKey] = slug
+					sample.NewConfigFuncs = append(sample.NewConfigFuncs, step)
+				}
+				activeIdx++
 			}
 		}
 	}

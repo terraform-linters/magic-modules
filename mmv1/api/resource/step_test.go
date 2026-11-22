@@ -1,6 +1,7 @@
 package resource_test
 
 import (
+	"strings"
 	"testing"
 	"testing/fstest"
 
@@ -300,4 +301,302 @@ func TestStep_SetHCLText_NullVars(t *testing.T) {
 	if diff := cmp.Diff(wantStep1OiCS, steps[1].OicsHCLText); diff != "" {
 		t.Errorf("Step 1 OicsHCLText mismatch (-want +got):\n%s", diff)
 	}
+}
+
+func TestStep_Validate_UnusedVars(t *testing.T) {
+	t.Parallel()
+
+	sysfs := fstest.MapFS{
+		"templates/terraform/samples/services/pubsub/used.tf.tmpl": &fstest.MapFile{
+			Data: []byte(`resource "google_pubsub_topic" "{{$.PrimaryResourceId}}" {
+  name    = "{{index $.ResourceIdVars "topic_name"}}"
+  project = "{{index $.TestEnvVars "project"}}"
+  labels = {
+    env = "{{index $.Vars "env"}}"
+  }
+  source = "path/to/index.zip"
+}
+`),
+		},
+	}
+
+	t.Run("all variables used passes validation", func(t *testing.T) {
+		t.Parallel()
+		st := &resource.Step{
+			Name:       "used",
+			ConfigPath: "templates/terraform/samples/services/pubsub/used.tf.tmpl",
+			ResourceIdVars: map[string]string{
+				"topic_name": "my-topic",
+			},
+			Vars: resource.StepVars{
+				"env": "dev",
+			},
+			TestEnvVars: map[string]string{
+				"project":          "PROJECT_NAME",
+				"consumer_project": "PROJECT_NAME",
+			},
+			TestVarsOverrides: map[string]string{
+				"topic_name": `"custom-topic"`,
+				"zip_path":   `"./test-fixtures/index.zip"`,
+			},
+			OicsVarsOverrides: map[string]string{
+				"env": "oics-dev",
+			},
+		}
+		st.PrimaryResourceId = "primary"
+		st.SetHCLText(sysfs)
+		st.IamHCLText = `consumer_project = "%{consumer_project}"`
+
+		if errs := st.Validate("Topic", "pubsub_topic_used"); len(errs) != 0 {
+			t.Errorf("Validate() returned unexpected errors: %v", errs)
+		}
+	})
+
+	t.Run("unused variables across maps fail validation", func(t *testing.T) {
+		t.Parallel()
+		st := &resource.Step{
+			Name:       "used",
+			ConfigPath: "templates/terraform/samples/services/pubsub/used.tf.tmpl",
+			ResourceIdVars: map[string]string{
+				"topic_name": "my-topic",
+				"unused_id":  "unused",
+				"paired_id":  "paired",
+			},
+			Vars: resource.StepVars{
+				"env":        "dev",
+				"unused_var": "val",
+			},
+			TestEnvVars: map[string]string{
+				"project":    "PROJECT_NAME",
+				"unused_env": "ORG_ID",
+			},
+			TestVarsOverrides: map[string]string{
+				"unused_override": `"val"`,
+				"paired_id":       `"val"`,
+			},
+			OicsVarsOverrides: map[string]string{
+				"orphan_oics": "val",
+				"paired_id":   "val",
+			},
+		}
+		st.PrimaryResourceId = "primary"
+		st.SetHCLText(sysfs)
+
+		errs := st.Validate("Topic", "pubsub_topic_unused")
+		got := make([]string, len(errs))
+		for i, err := range errs {
+			got[i] = err.Error()
+		}
+		want := []string{
+			`unused variable "orphan_oics" in 'oics_vars_overrides' (not defined in 'vars' or 'resource_id_vars') for step "used" in sample "pubsub_topic_unused" of resource "Topic"`,
+			`unused variable "unused_var" in 'vars' for step "used" in sample "pubsub_topic_unused" of resource "Topic"`,
+			`unused variable "paired_id" in 'resource_id_vars' for step "used" in sample "pubsub_topic_unused" of resource "Topic"`,
+			`unused variable "unused_id" in 'resource_id_vars' for step "used" in sample "pubsub_topic_unused" of resource "Topic"`,
+			`unused variable "unused_env" in 'test_env_vars' for step "used" in sample "pubsub_topic_unused" of resource "Topic"`,
+			`unused variable "paired_id" in 'test_vars_overrides' for step "used" in sample "pubsub_topic_unused" of resource "Topic"`,
+			`unused variable "unused_override" in 'test_vars_overrides' for step "used" in sample "pubsub_topic_unused" of resource "Topic"`,
+			`unused variable "paired_id" in 'oics_vars_overrides' for step "used" in sample "pubsub_topic_unused" of resource "Topic"`,
+		}
+		if diff := cmp.Diff(want, got); diff != "" {
+			t.Errorf("Validate() errors mismatch (-want +got):\n%s", diff)
+		}
+	})
+
+	t.Run("unloaded step skips template usage checks", func(t *testing.T) {
+		t.Parallel()
+		st := &resource.Step{
+			Name:       "beta_only_step",
+			MinVersion: "beta",
+			ResourceIdVars: map[string]string{
+				"topic_name": "my-topic",
+			},
+			Vars: resource.StepVars{
+				"env": "dev",
+			},
+			TestEnvVars: map[string]string{
+				"project": "PROJECT_NAME",
+			},
+			TestVarsOverrides: map[string]string{
+				"topic_name": `"custom"`,
+			},
+		}
+		if errs := st.Validate("Topic", "pubsub_topic_beta"); len(errs) != 0 {
+			t.Errorf("Validate() on unloaded step returned unexpected errors: %v", errs)
+		}
+	})
+}
+
+func TestStep_TestStepSlug(t *testing.T) {
+	t.Parallel()
+
+	st := &resource.Step{Name: "pubsub_topic_basic"}
+	if got, want := st.TestStepSlug("Pubsub", "Topic"), "PubsubTopic_pubsubTopicBasicExample"; got != want {
+		t.Errorf("TestStepSlug() = %q, want %q", got, want)
+	}
+
+	st.StepSlug = "pubsub_topic_exhaustive_step2"
+	if got, want := st.TestStepSlug("Pubsub", "Topic"), "PubsubTopic_pubsubTopicExhaustiveStep2Example"; got != want {
+		t.Errorf("TestStepSlug() with StepSlug = %q, want %q", got, want)
+	}
+}
+
+func TestStep_ExecuteTemplate_StrictIndexAndMissingKey(t *testing.T) {
+	t.Parallel()
+
+	sysfs := fstest.MapFS{
+		"templates/missing_var.tf.tmpl": &fstest.MapFile{
+			Data: []byte(`name = "{{printf "%s" (index $.Vars "missing_key")}}"`),
+		},
+		"templates/missing_dot_key.tf.tmpl": &fstest.MapFile{
+			Data: []byte(`name = "{{$.Vars.missing_key}}"`),
+		},
+		"templates/nil_map.tf.tmpl": &fstest.MapFile{
+			Data: []byte(`name = "{{index $.ResourceIdVars "id"}}"`),
+		},
+	}
+
+	t.Run("nested index on missing Vars key returns error", func(t *testing.T) {
+		t.Parallel()
+		st := &resource.Step{
+			Name:       "s",
+			ConfigPath: "templates/missing_var.tf.tmpl",
+			Vars:       resource.StepVars{"present": "ok"},
+		}
+		_, err := st.ExecuteTemplate(sysfs)
+		if err == nil || !strings.Contains(err.Error(), `map has no entry for key "missing_key"`) {
+			t.Errorf("ExecuteTemplate() err = %v, want missing_key error", err)
+		}
+	})
+
+	t.Run("dot lookup on missing map key returns error via missingkey=error", func(t *testing.T) {
+		t.Parallel()
+		st := &resource.Step{
+			Name:       "s",
+			ConfigPath: "templates/missing_dot_key.tf.tmpl",
+			Vars:       resource.StepVars{"present": "ok"},
+		}
+		_, err := st.ExecuteTemplate(sysfs)
+		if err == nil || !strings.Contains(err.Error(), `map has no entry for key "missing_key"`) {
+			t.Errorf("ExecuteTemplate() err = %v, want missing_key error", err)
+		}
+	})
+
+	t.Run("index on nil map returns error", func(t *testing.T) {
+		t.Parallel()
+		st := &resource.Step{
+			Name:       "s",
+			ConfigPath: "templates/nil_map.tf.tmpl",
+		}
+		_, err := st.ExecuteTemplate(sysfs)
+		if err == nil || !strings.Contains(err.Error(), `map has no entry for key "id"`) {
+			t.Errorf("ExecuteTemplate() err = %v, want missing id error", err)
+		}
+	})
+}
+
+func TestStep_Validate_QuoteWrappedVars(t *testing.T) {
+	t.Parallel()
+
+	t.Run("rejects quote-wrapped values across vars, resource_id_vars, and oics_vars_overrides", func(t *testing.T) {
+		t.Parallel()
+		st := &resource.Step{
+			Name: "sample_step",
+			Vars: resource.StepVars{
+				"double_quoted":    `"DELETE"`,
+				"single_quoted":    `'DELETE'`,
+				"empty_double":     `""`,
+				"empty_single":     `''`,
+				"whitespace_pad":   " \"DELETE\"\n",
+				"escaped_inner":    `"foo\"bar"`,
+				"escaped_bslash":   `"foo\\"`,
+				"regex_like":       `"\d+"`,
+				"valid_plain":      "DELETE",
+				"valid_empty":      "",
+				"valid_null":       "null",
+				"valid_hcl_list":   `["-c", "echo hello"]`,
+				"valid_hcl_map":    `{"key" = "value"}`,
+				"valid_hcl_ref":    `data.google_container_engine_versions.versions.release_channel_latest_version["REGULAR"]`,
+				"valid_json_array": `[\"Default Environment\"]`,
+				"valid_pair":       `"a" = "b"`,
+				"valid_single_chr": `"`,
+				"valid_unclosed":   `"unterminated`,
+				"valid_esc_end":    `"foo\"`,
+			},
+			ResourceIdVars: map[string]string{
+				"quoted_id":  `"custom-nam11-config"`,
+				"single_id":  `'custom-id'`,
+				"valid_id":   "custom-nam11-config",
+				"valid_cidr": "136.124.3.120/32",
+			},
+			TestVarsOverrides: map[string]string{
+				"valid_id": `"custom-tf-test-nam11-config"`,
+			},
+			OicsVarsOverrides: map[string]string{
+				"valid_id":    `"DELETE"`,
+				"valid_plain": `'DELETE'`,
+				"valid_cidr":  "DELETE",
+			},
+		}
+
+		errs := st.Validate("InstanceConfig", "spanner_instance_config_basic")
+		got := make([]string, len(errs))
+		for i, err := range errs {
+			got[i] = err.Error()
+		}
+		want := []string{
+			`variable "double_quoted" in 'vars' has quote-wrapped value "\"DELETE\"" for step "sample_step" in sample "spanner_instance_config_basic" of resource "InstanceConfig"; values are substituted verbatim into HCL templates (unlike 'test_vars_overrides'), so remove the surrounding quotes`,
+			`variable "empty_double" in 'vars' has quote-wrapped value "\"\"" for step "sample_step" in sample "spanner_instance_config_basic" of resource "InstanceConfig"; values are substituted verbatim into HCL templates (unlike 'test_vars_overrides'), so remove the surrounding quotes`,
+			`variable "empty_single" in 'vars' has quote-wrapped value "''" for step "sample_step" in sample "spanner_instance_config_basic" of resource "InstanceConfig"; values are substituted verbatim into HCL templates (unlike 'test_vars_overrides'), so remove the surrounding quotes`,
+			`variable "escaped_bslash" in 'vars' has quote-wrapped value "\"foo\\\\\"" for step "sample_step" in sample "spanner_instance_config_basic" of resource "InstanceConfig"; values are substituted verbatim into HCL templates (unlike 'test_vars_overrides'), so remove the surrounding quotes`,
+			`variable "escaped_inner" in 'vars' has quote-wrapped value "\"foo\\\"bar\"" for step "sample_step" in sample "spanner_instance_config_basic" of resource "InstanceConfig"; values are substituted verbatim into HCL templates (unlike 'test_vars_overrides'), so remove the surrounding quotes`,
+			`variable "regex_like" in 'vars' has quote-wrapped value "\"\\d+\"" for step "sample_step" in sample "spanner_instance_config_basic" of resource "InstanceConfig"; values are substituted verbatim into HCL templates (unlike 'test_vars_overrides'), so remove the surrounding quotes`,
+			`variable "single_quoted" in 'vars' has quote-wrapped value "'DELETE'" for step "sample_step" in sample "spanner_instance_config_basic" of resource "InstanceConfig"; values are substituted verbatim into HCL templates (unlike 'test_vars_overrides'), so remove the surrounding quotes`,
+			`variable "whitespace_pad" in 'vars' has quote-wrapped value " \"DELETE\"\n" for step "sample_step" in sample "spanner_instance_config_basic" of resource "InstanceConfig"; values are substituted verbatim into HCL templates (unlike 'test_vars_overrides'), so remove the surrounding quotes`,
+			`variable "quoted_id" in 'resource_id_vars' has quote-wrapped value "\"custom-nam11-config\"" for step "sample_step" in sample "spanner_instance_config_basic" of resource "InstanceConfig"; values are substituted verbatim into HCL templates (unlike 'test_vars_overrides'), so remove the surrounding quotes`,
+			`variable "single_id" in 'resource_id_vars' has quote-wrapped value "'custom-id'" for step "sample_step" in sample "spanner_instance_config_basic" of resource "InstanceConfig"; values are substituted verbatim into HCL templates (unlike 'test_vars_overrides'), so remove the surrounding quotes`,
+			`variable "valid_id" in 'oics_vars_overrides' has quote-wrapped value "\"DELETE\"" for step "sample_step" in sample "spanner_instance_config_basic" of resource "InstanceConfig"; values are substituted verbatim into HCL templates (unlike 'test_vars_overrides'), so remove the surrounding quotes`,
+			`variable "valid_plain" in 'oics_vars_overrides' has quote-wrapped value "'DELETE'" for step "sample_step" in sample "spanner_instance_config_basic" of resource "InstanceConfig"; values are substituted verbatim into HCL templates (unlike 'test_vars_overrides'), so remove the surrounding quotes`,
+		}
+		if diff := cmp.Diff(want, got); diff != "" {
+			t.Errorf("Validate() errors mismatch (-want +got):\n%s", diff)
+		}
+	})
+
+	t.Run("yaml unmarshaling distinguishes YAML quotes from literal HCL quotes", func(t *testing.T) {
+		t.Parallel()
+		rawYAML := `
+name: sample_step
+resource_id_vars:
+  yaml_single_quoted: 'my-id'
+  yaml_double_quoted: "my-other-id"
+  unquoted_id: my-plain-id
+vars:
+  empty_str: ""
+  null_val: null
+  yaml_quoted_str: "DELETE"
+  literal_quoted_str: '"DELETE"'
+test_vars_overrides:
+  yaml_single_quoted: '"override-id"'
+oics_vars_overrides:
+  yaml_single_quoted: "DELETE"
+  yaml_double_quoted: '"DELETE"'
+`
+		var st resource.Step
+		if err := yaml.Unmarshal([]byte(rawYAML), &st); err != nil {
+			t.Fatalf("yaml.Unmarshal failed: %v", err)
+		}
+
+		errs := st.Validate("Instance", "sample_name")
+		got := make([]string, len(errs))
+		for i, err := range errs {
+			got[i] = err.Error()
+		}
+		want := []string{
+			`variable "literal_quoted_str" in 'vars' has quote-wrapped value "\"DELETE\"" for step "sample_step" in sample "sample_name" of resource "Instance"; values are substituted verbatim into HCL templates (unlike 'test_vars_overrides'), so remove the surrounding quotes`,
+			`variable "yaml_double_quoted" in 'oics_vars_overrides' has quote-wrapped value "\"DELETE\"" for step "sample_step" in sample "sample_name" of resource "Instance"; values are substituted verbatim into HCL templates (unlike 'test_vars_overrides'), so remove the surrounding quotes`,
+		}
+		if diff := cmp.Diff(want, got); diff != "" {
+			t.Errorf("Validate() errors mismatch (-want +got):\n%s", diff)
+		}
+	})
 }

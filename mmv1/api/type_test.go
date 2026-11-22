@@ -1424,3 +1424,947 @@ func TestTypeJsonValue(t *testing.T) {
 		})
 	}
 }
+
+func TestTypeValidateRequiredUnderOutput(t *testing.T) {
+	t.Parallel()
+
+	p := &Product{
+		Name: "TestProduct",
+		Versions: []*product.Version{
+			{Name: "ga", BaseUrl: "ga_url"},
+		},
+	}
+
+	cases := []struct {
+		description string
+		prop        *Type
+		wantError   string
+	}{
+		{
+			description: "direct required child under output NestedObject returns error",
+			prop: &Type{
+				Name:   "status",
+				Type:   "NestedObject",
+				Output: true,
+				Properties: []*Type{
+					{Name: "code", Type: "String", Required: true},
+				},
+			},
+			wantError: "property status.code cannot be required because it has an output ancestor in resource TestResource",
+		},
+		{
+			description: "multi-level nested required descendant under output Array returns error",
+			prop: &Type{
+				Name:   "runtimeConfigs",
+				Type:   "Array",
+				Output: true,
+				ItemType: &Type{
+					Type: "NestedObject",
+					Properties: []*Type{
+						{
+							Name: "gkeWorkload",
+							Type: "NestedObject",
+							Properties: []*Type{
+								{Name: "cluster", Type: "String", Required: true},
+							},
+						},
+					},
+				},
+			},
+			wantError: "property runtime_configs.gke_workload.cluster cannot be required because it has an output ancestor in resource TestResource",
+		},
+		{
+			description: "required descendant under output Map ValueType returns error",
+			prop: &Type{
+				Name:    "entries",
+				Type:    "Map",
+				KeyName: "key",
+				Output:  true,
+				ValueType: &Type{
+					Type: "NestedObject",
+					Properties: []*Type{
+						{Name: "value", Type: "String", Required: true},
+					},
+				},
+			},
+			wantError: "property entries.value cannot be required because it has an output ancestor in resource TestResource",
+		},
+		{
+			description: "output descendant under output parent succeeds",
+			prop: &Type{
+				Name:   "status",
+				Type:   "NestedObject",
+				Output: true,
+				Properties: []*Type{
+					{Name: "code", Type: "String", Output: true},
+				},
+			},
+		},
+		{
+			description: "required child with no output ancestor succeeds",
+			prop: &Type{
+				Name: "config",
+				Type: "NestedObject",
+				Properties: []*Type{
+					{Name: "name", Type: "String", Required: true},
+				},
+			},
+		},
+		{
+			description: "non-required non-output descendant under output parent succeeds",
+			prop: &Type{
+				Name:   "status",
+				Type:   "NestedObject",
+				Output: true,
+				Properties: []*Type{
+					{Name: "message", Type: "String"},
+				},
+			},
+		},
+	}
+
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.description, func(t *testing.T) {
+			t.Parallel()
+			res := &Resource{
+				Name:       "TestResource",
+				Properties: []*Type{tc.prop},
+			}
+			res.SetDefault(p)
+
+			errs := tc.prop.Validate(res.Name)
+			if tc.wantError == "" {
+				if len(errs) > 0 {
+					t.Fatalf("expected no errors, got: %v", errs)
+				}
+				return
+			}
+			if len(errs) != 1 || errs[0].Error() != tc.wantError {
+				t.Fatalf("expected error %q, got: %v", tc.wantError, errs)
+			}
+		})
+	}
+
+	t.Run("hasOutputAncestor is nil-safe and cycle-safe", func(t *testing.T) {
+		t.Parallel()
+		var nilType *Type
+		if nilType.hasOutputAncestor() {
+			t.Errorf("expected nil Type to return false")
+		}
+		a := &Type{Name: "a", Type: "NestedObject"}
+		b := &Type{Name: "b", Type: "NestedObject", ParentMetadata: a}
+		a.ParentMetadata = b
+		if a.hasOutputAncestor() {
+			t.Errorf("expected cycle without output ancestor to return false")
+		}
+		b.Output = true
+		if !a.hasOutputAncestor() {
+			t.Errorf("expected cycle with output ancestor to return true")
+		}
+	})
+}
+
+func TestTypeValidateInternalRefs(t *testing.T) {
+	t.Parallel()
+
+	p := &Product{
+		Name:     "TestProduct",
+		Versions: []*product.Version{{Name: "ga", BaseUrl: "ga_url"}},
+	}
+
+	cases := []struct {
+		name      string
+		prop      *Type
+		wantError string
+	}{
+		{
+			name:      "corp.google.com subdomain in description",
+			prop:      &Type{Name: "field", Type: "String", Description: "See https://clouddocs.devsite.corp.google.com/docs."},
+			wantError: `property field ` + "`description`" + ` in resource TestResource must not contain internal Google reference "corp.google.com"`,
+		},
+		{
+			name:      "goto.google.com in description",
+			prop:      &Type{Name: "field", Type: "String", Description: "See https://goto.google.com/my-doc."},
+			wantError: `internal Google reference "goto.google.com"`,
+		},
+		{
+			name:      "http://go/ in description",
+			prop:      &Type{Name: "field", Type: "String", Description: "See http://go/internal-doc."},
+			wantError: `internal Google reference "go/"`,
+		},
+		{
+			name:      "https://go/ in description",
+			prop:      &Type{Name: "field", Type: "String", Description: "See https://go/internal-doc."},
+			wantError: `internal Google reference "go/"`,
+		},
+		{
+			name:      "bare go/ in description",
+			prop:      &Type{Name: "field", Type: "String", Description: "Drawn from go/cloud-ai-gcp-pool."},
+			wantError: `internal Google reference "go/"`,
+		},
+		{
+			name:      "bare b/ bug ID in description",
+			prop:      &Type{Name: "field", Type: "String", Description: "See b/360405077#comment8."},
+			wantError: `internal Google reference "b/"`,
+		},
+		{
+			name:      "https://b/ bug URL in description",
+			prop:      &Type{Name: "field", Type: "String", Description: "See https://b/123456."},
+			wantError: `internal Google reference "b/"`,
+		},
+		{
+			name:      "//depot/ in description",
+			prop:      &Type{Name: "field", Type: "String", Description: "Defined at //depot/foo/bar.proto."},
+			wantError: `internal Google reference "//depot/"`,
+		},
+		{
+			name:      "google3/ in description",
+			prop:      &Type{Name: "field", Type: "String", Description: "Defined at google3/cloud/foo/bar.proto."},
+			wantError: `internal Google reference "google3/"`,
+		},
+		{
+			name:      "case-insensitive corp.google.com",
+			prop:      &Type{Name: "field", Type: "String", Description: "See HTTPS://B.CORP.GOOGLE.COM/issues/123."},
+			wantError: `internal Google reference "corp.google.com"`,
+		},
+		{
+			name:      "case-insensitive HTTPS://GO/",
+			prop:      &Type{Name: "field", Type: "String", Description: "See HTTPS://GO/my-link."},
+			wantError: `internal Google reference "go/"`,
+		},
+		{
+			name:      "case-insensitive GOOGLE3/",
+			prop:      &Type{Name: "field", Type: "String", Description: "Path GOOGLE3/cloud/api.proto."},
+			wantError: `internal Google reference "google3/"`,
+		},
+		{
+			name:      "deprecation_message with internal URL",
+			prop:      &Type{Name: "field", Type: "String", DeprecationMessage: "See https://goto.google.com/deprecation."},
+			wantError: `property field ` + "`deprecation_message`" + ` in resource TestResource must not contain internal Google reference "goto.google.com"`,
+		},
+		{
+			name:      "removed_message with internal path",
+			prop:      &Type{Name: "field", Type: "String", RemovedMessage: "Removed per google3/cloud/removed.proto."},
+			wantError: `property field ` + "`removed_message`" + ` in resource TestResource must not contain internal Google reference "google3/"`,
+		},
+		{
+			name: "nested object child description",
+			prop: &Type{
+				Name: "parent",
+				Type: "NestedObject",
+				Properties: []*Type{
+					{Name: "childField", Type: "String", Description: "See https://g3doc.corp.google.com/foo."},
+				},
+			},
+			wantError: `property parent.child_field ` + "`description`" + ` in resource TestResource must not contain internal Google reference "corp.google.com"`,
+		},
+		{
+			name: "array item_type nested description",
+			prop: &Type{
+				Name: "items",
+				Type: "Array",
+				ItemType: &Type{
+					Type: "NestedObject",
+					Properties: []*Type{
+						{Name: "entry", Type: "String", Description: "See //depot/foo/bar.proto."},
+					},
+				},
+			},
+			wantError: `property items.entry ` + "`description`" + ` in resource TestResource must not contain internal Google reference "//depot/"`,
+		},
+		{
+			name: "valid public URLs and prose pass",
+			prop: &Type{
+				Name: "field",
+				Type: "String",
+				Description: "See https://cloud.google.com/go/docs, https://go.dev/doc, " +
+					"https://beyondcorp.googleapis.com/v1/, beyondcorp.google.com, " +
+					"https://example.com/depot/foo, https://example.com/b/123456, " +
+					"django/app, mygoogle3/path, and 100 b/s.",
+			},
+		},
+	}
+
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			res := &Resource{Name: "TestResource", Properties: []*Type{tc.prop}}
+			res.SetDefault(p)
+
+			errs := tc.prop.Validate(res.Name)
+			if tc.wantError == "" {
+				if len(errs) != 0 {
+					t.Fatalf("expected no errors, got: %v", errs)
+				}
+				return
+			}
+			for _, err := range errs {
+				if strings.Contains(err.Error(), tc.wantError) {
+					return
+				}
+			}
+			t.Fatalf("expected error containing %q, got: %v", tc.wantError, errs)
+		})
+	}
+}
+
+func TestTypeValidateEnumAndSendEmptyValue(t *testing.T) {
+	t.Parallel()
+
+	p := &Product{
+		Name: "TestProduct",
+		Versions: []*product.Version{
+			{Name: "ga", BaseUrl: "ga_url"},
+		},
+	}
+
+	cases := []struct {
+		description string
+		prop        *Type
+		resource    string
+		wantError   string
+	}{
+		{
+			description: "Enum with empty enum_values fails",
+			prop: &Type{
+				Name: "mode",
+				Type: "Enum",
+			},
+			resource:  "MyResource",
+			wantError: "property mode of type Enum must specify non-empty enum_values in resource MyResource",
+		},
+		{
+			description: "Enum with manual Possible values in description fails",
+			prop: &Type{
+				Name:        "mode",
+				Type:        "Enum",
+				Description: "Operating mode. Possible values: FAST, SLOW.",
+				EnumValues:  []string{"FAST", "SLOW"},
+			},
+			resource:  "MyResource",
+			wantError: "property mode cannot manually include 'Possible values:' in description in resource MyResource",
+		},
+		{
+			description: "Array of Enum with manual Possible values in description fails",
+			prop: &Type{
+				Name:        "modes",
+				Type:        "Array",
+				Description: "Modes. Possible values: [FAST, SLOW]",
+				ItemType: &Type{
+					Type:       "Enum",
+					EnumValues: []string{"FAST", "SLOW"},
+				},
+			},
+			resource:  "MyResource",
+			wantError: "property modes cannot manually include 'Possible values:' in description in resource MyResource",
+		},
+		{
+			description: "Valid Enum without manual Possible values succeeds",
+			prop: &Type{
+				Name:        "mode",
+				Type:        "Enum",
+				Description: "Operating mode.",
+				EnumValues:  []string{"FAST", "SLOW"},
+			},
+			resource:  "MyResource",
+			wantError: "",
+		},
+		{
+			description: "send_empty_value combined with output fails",
+			prop: &Type{
+				Name:           "state",
+				Type:           "String",
+				SendEmptyValue: true,
+				Output:         true,
+			},
+			resource:  "MyResource",
+			wantError: "property state cannot set both send_empty_value and output in resource MyResource",
+		},
+	}
+
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.description, func(t *testing.T) {
+			t.Parallel()
+			res := &Resource{
+				Name:       tc.resource,
+				Properties: []*Type{tc.prop},
+			}
+			res.SetDefault(p)
+			errs := tc.prop.Validate(tc.resource)
+			if tc.wantError == "" {
+				if len(errs) > 0 {
+					t.Fatalf("expected no errors, got: %v", errs)
+				}
+				return
+			}
+			found := false
+			for _, err := range errs {
+				if strings.Contains(err.Error(), tc.wantError) {
+					found = true
+					break
+				}
+			}
+			if !found {
+				t.Fatalf("expected error containing %q, got: %v", tc.wantError, errs)
+			}
+		})
+	}
+
+	t.Run("send_empty_value allowlist is scoped to product folder", func(t *testing.T) {
+		t.Parallel()
+		makeRes := func(pkgPath, prodName string) (*Resource, *Type) {
+			prod := &Product{
+				Name:        prodName,
+				PackagePath: pkgPath,
+				Versions:    []*product.Version{{Name: "ga", BaseUrl: "ga_url"}},
+			}
+			leaf := &Type{
+				Name:             "geAuthProvider",
+				Type:             "NestedObject",
+				AllowEmptyObject: true,
+				SendEmptyValue:   true,
+				Output:           true,
+				Properties:       []*Type{},
+			}
+			parent := &Type{
+				Name:       "authProviderTypeParams",
+				Type:       "NestedObject",
+				Properties: []*Type{leaf},
+			}
+			res := &Resource{
+				Name:       "AuthProvider",
+				Properties: []*Type{parent},
+			}
+			res.SetDefault(prod)
+			return res, parent
+		}
+
+		resAllowed, parentAllowed := makeRes("products/agentidentity", "AgentIdentity")
+		if errs := parentAllowed.Validate(resAllowed.Name); len(errs) > 0 {
+			t.Fatalf("expected allowlisted agentidentity field to pass, got: %v", errs)
+		}
+
+		resOther, parentOther := makeRes("products/otherproduct", "OtherProduct")
+		errs := parentOther.Validate(resOther.Name)
+		want := "property auth_provider_type_params.ge_auth_provider cannot set both send_empty_value and output in resource AuthProvider"
+		if len(errs) != 1 || !strings.Contains(errs[0].Error(), want) {
+			t.Fatalf("expected error containing %q for non-allowlisted product, got: %v", want, errs)
+		}
+	})
+}
+
+func TestTypeValidateDefaultValue(t *testing.T) {
+	t.Parallel()
+
+	p := &Product{
+		Name: "TestProduct",
+		Versions: []*product.Version{
+			{Name: "ga", BaseUrl: "ga_url"},
+		},
+	}
+
+	cases := []struct {
+		description string
+		prop        *Type
+		wantErrors  []string
+	}{
+		{
+			description: "Boolean with true succeeds",
+			prop:        &Type{Name: "flag", Type: "Boolean", DefaultValue: true},
+		},
+		{
+			description: "Boolean with zero value false succeeds",
+			prop:        &Type{Name: "flag", Type: "Boolean", DefaultValue: false},
+		},
+		{
+			description: "Integer with int succeeds",
+			prop:        &Type{Name: "count", Type: "Integer", DefaultValue: 42},
+		},
+		{
+			description: "Integer with int64 succeeds",
+			prop:        &Type{Name: "count", Type: "Integer", DefaultValue: int64(42)},
+		},
+		{
+			description: "Integer with zero value 0 succeeds",
+			prop:        &Type{Name: "count", Type: "Integer", DefaultValue: 0},
+		},
+		{
+			description: "Double with float64 succeeds",
+			prop:        &Type{Name: "ratio", Type: "Double", DefaultValue: 3.14},
+		},
+		{
+			description: "Double with zero float64 succeeds",
+			prop:        &Type{Name: "ratio", Type: "Double", DefaultValue: 0.0},
+		},
+		{
+			description: "Double with int succeeds",
+			prop:        &Type{Name: "ratio", Type: "Double", DefaultValue: 1},
+		},
+		{
+			description: "Double with int64 succeeds",
+			prop:        &Type{Name: "ratio", Type: "Double", DefaultValue: int64(2)},
+		},
+		{
+			description: "String with non-empty string succeeds",
+			prop:        &Type{Name: "label", Type: "String", DefaultValue: "hello"},
+		},
+		{
+			description: "String with empty string zero value succeeds",
+			prop:        &Type{Name: "label", Type: "String", DefaultValue: ""},
+		},
+		{
+			description: "ResourceRef with string succeeds",
+			prop:        &Type{Name: "network", Type: "ResourceRef", DefaultValue: "default"},
+		},
+		{
+			description: "Enum with valid member succeeds",
+			prop:        &Type{Name: "mode", Type: "Enum", DefaultValue: "FOO", EnumValues: []string{"FOO", "BAR"}},
+		},
+		{
+			description: "Enum with empty string member succeeds when empty string is in enum_values",
+			prop:        &Type{Name: "mode", Type: "Enum", DefaultValue: "", EnumValues: []string{"", "FOO"}},
+		},
+		{
+			description: "excluded Enum with string default and empty enum_values succeeds",
+			prop:        &Type{Name: "mode", Type: "Enum", DefaultValue: "FOO", Exclude: true},
+		},
+		{
+			description: "required field with nil default_value succeeds",
+			prop:        &Type{Name: "req", Type: "String", Required: true},
+		},
+		{
+			description: "output field with nil default_value succeeds",
+			prop:        &Type{Name: "out", Type: "String", Output: true},
+		},
+		{
+			description: "Boolean with string default_value returns error",
+			prop:        &Type{Name: "flag", Type: "Boolean", DefaultValue: "true"},
+			wantErrors:  []string{"property flag has default_value true of type string, expected bool for Boolean in resource TestResource"},
+		},
+		{
+			description: "Boolean with zero int default_value returns error",
+			prop:        &Type{Name: "flag", Type: "Boolean", DefaultValue: 0},
+			wantErrors:  []string{"property flag has default_value 0 of type int, expected bool for Boolean in resource TestResource"},
+		},
+		{
+			description: "Integer with string default_value returns error",
+			prop:        &Type{Name: "count", Type: "Integer", DefaultValue: "1"},
+			wantErrors:  []string{"property count has default_value 1 of type string, expected int or int64 for Integer in resource TestResource"},
+		},
+		{
+			description: "Integer with float64 default_value returns error",
+			prop:        &Type{Name: "count", Type: "Integer", DefaultValue: 1.5},
+			wantErrors:  []string{"property count has default_value 1.5 of type float64, expected int or int64 for Integer in resource TestResource"},
+		},
+		{
+			description: "Double with string default_value returns error",
+			prop:        &Type{Name: "ratio", Type: "Double", DefaultValue: "1.5"},
+			wantErrors:  []string{"property ratio has default_value 1.5 of type string, expected float64, int, or int64 for Double in resource TestResource"},
+		},
+		{
+			description: "Double with bool default_value returns error",
+			prop:        &Type{Name: "ratio", Type: "Double", DefaultValue: false},
+			wantErrors:  []string{"property ratio has default_value false of type bool, expected float64, int, or int64 for Double in resource TestResource"},
+		},
+		{
+			description: "String with int default_value returns error",
+			prop:        &Type{Name: "label", Type: "String", DefaultValue: 123},
+			wantErrors:  []string{"property label has default_value 123 of type int, expected string for String in resource TestResource"},
+		},
+		{
+			description: "Enum with int default_value returns error even when enum_values is empty",
+			prop:        &Type{Name: "mode", Type: "Enum", DefaultValue: 1},
+			wantErrors:  []string{"property mode has default_value 1 of type int, expected string for Enum in resource TestResource"},
+		},
+		{
+			description: "ResourceRef with int default_value returns error",
+			prop:        &Type{Name: "network", Type: "ResourceRef", DefaultValue: 123},
+			wantErrors:  []string{"property network has default_value 123 of type int, expected string for ResourceRef in resource TestResource"},
+		},
+		{
+			description: "NestedObject with default_value returns error",
+			prop: &Type{
+				Name:         "config",
+				Type:         "NestedObject",
+				DefaultValue: map[string]interface{}{},
+				Properties:   []*Type{{Name: "a", Type: "String"}},
+			},
+			wantErrors: []string{"property config cannot set default_value for type NestedObject in resource TestResource"},
+		},
+		{
+			description: "Array with default_value returns error",
+			prop: &Type{
+				Name:         "items",
+				Type:         "Array",
+				DefaultValue: []string{"a"},
+				ItemType:     &Type{Type: "String"},
+			},
+			wantErrors: []string{"property items cannot set default_value for type Array in resource TestResource"},
+		},
+		{
+			description: "Map with default_value returns error",
+			prop: &Type{
+				Name:         "entries",
+				Type:         "Map",
+				DefaultValue: map[string]interface{}{},
+				ValueType:    &Type{Type: "NestedObject"},
+			},
+			wantErrors: []string{"property entries cannot set default_value for type Map in resource TestResource"},
+		},
+		{
+			description: "KeyValuePairs with default_value returns error",
+			prop:        &Type{Name: "meta", Type: "KeyValuePairs", DefaultValue: "a"},
+			wantErrors:  []string{"property meta cannot set default_value for type KeyValuePairs in resource TestResource"},
+		},
+		{
+			description: "Time with default_value returns error",
+			prop:        &Type{Name: "createTime", Type: "Time", DefaultValue: "2024-01-01T00:00:00Z"},
+			wantErrors:  []string{"property create_time cannot set default_value for type Time in resource TestResource"},
+		},
+		{
+			description: "JsonValue with default_value returns error",
+			prop:        &Type{Name: "payload", Type: "JsonValue", DefaultValue: "{}"},
+			wantErrors:  []string{"property payload cannot set default_value for type JsonValue in resource TestResource"},
+		},
+		{
+			description: "Enum with default_value not in enum_values returns error",
+			prop:        &Type{Name: "mode", Type: "Enum", DefaultValue: "BAZ", EnumValues: []string{"FOO", "BAR"}},
+			wantErrors:  []string{`property mode has default_value "BAZ" which is not in enum_values [FOO BAR] in resource TestResource`},
+		},
+		{
+			description: "Enum with empty string default_value not in enum_values returns error",
+			prop:        &Type{Name: "mode", Type: "Enum", DefaultValue: "", EnumValues: []string{"FOO", "BAR"}},
+			wantErrors:  []string{`property mode has default_value "" which is not in enum_values [FOO BAR] in resource TestResource`},
+		},
+		{
+			description: "required with non-zero default_value returns error",
+			prop:        &Type{Name: "field", Type: "String", Required: true, DefaultValue: "abc"},
+			wantErrors:  []string{"property field cannot set both default_value and required in resource TestResource"},
+		},
+		{
+			description: "required with false zero default_value returns error",
+			prop:        &Type{Name: "flag", Type: "Boolean", Required: true, DefaultValue: false},
+			wantErrors:  []string{"property flag cannot set both default_value and required in resource TestResource"},
+		},
+		{
+			description: "required with 0 zero default_value returns error",
+			prop:        &Type{Name: "count", Type: "Integer", Required: true, DefaultValue: 0},
+			wantErrors:  []string{"property count cannot set both default_value and required in resource TestResource"},
+		},
+		{
+			description: "required with empty string zero default_value returns error",
+			prop:        &Type{Name: "label", Type: "String", Required: true, DefaultValue: ""},
+			wantErrors:  []string{"property label cannot set both default_value and required in resource TestResource"},
+		},
+		{
+			description: "output with non-zero default_value returns error",
+			prop:        &Type{Name: "field", Type: "String", Output: true, DefaultValue: "abc"},
+			wantErrors:  []string{"property field cannot set both default_value and output in resource TestResource"},
+		},
+		{
+			description: "output with false zero default_value returns error",
+			prop:        &Type{Name: "flag", Type: "Boolean", Output: true, DefaultValue: false},
+			wantErrors:  []string{"property flag cannot set both default_value and output in resource TestResource"},
+		},
+		{
+			description: "output with 0 zero default_value returns error",
+			prop:        &Type{Name: "count", Type: "Integer", Output: true, DefaultValue: 0},
+			wantErrors:  []string{"property count cannot set both default_value and output in resource TestResource"},
+		},
+		{
+			description: "nested property default_value error uses full lineage path",
+			prop: &Type{
+				Name: "nested",
+				Type: "NestedObject",
+				Properties: []*Type{
+					{Name: "childField", Type: "Integer", DefaultValue: "wrong"},
+				},
+			},
+			wantErrors: []string{"property nested.child_field has default_value wrong of type string, expected int or int64 for Integer in resource TestResource"},
+		},
+	}
+
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.description, func(t *testing.T) {
+			t.Parallel()
+			res := &Resource{
+				Name:       "TestResource",
+				Properties: []*Type{tc.prop},
+			}
+			res.SetDefault(p)
+
+			errs := tc.prop.Validate(res.Name)
+			if len(tc.wantErrors) == 0 {
+				if len(errs) > 0 {
+					t.Fatalf("expected no errors, got: %v", errs)
+				}
+				return
+			}
+			for _, want := range tc.wantErrors {
+				found := false
+				for _, err := range errs {
+					if strings.Contains(err.Error(), want) {
+						found = true
+						break
+					}
+				}
+				if !found {
+					t.Errorf("expected error containing %q, got: %v", want, errs)
+				}
+			}
+		})
+	}
+}
+
+func TestTypeValidateEnumValues(t *testing.T) {
+	t.Parallel()
+
+	p := &Product{
+		Name: "TestProduct",
+		Versions: []*product.Version{
+			{Name: "ga", BaseUrl: "ga_url"},
+		},
+	}
+
+	cases := []struct {
+		description    string
+		prop           *Type
+		wantErrCount   int
+		wantSubstrings []string
+	}{
+		{
+			description: "distinct enum_values succeeds",
+			prop:        &Type{Name: "mode", Type: "Enum", EnumValues: []string{"A", "B", "C"}},
+		},
+		{
+			description: "excluded Enum with empty enum_values succeeds (not enforced by validateEnumValues)",
+			prop:        &Type{Name: "mode", Type: "Enum", Exclude: true},
+		},
+		{
+			description: "Array of Enum with distinct enum_values succeeds",
+			prop: &Type{
+				Name: "modes",
+				Type: "Array",
+				ItemType: &Type{
+					Type:       "Enum",
+					EnumValues: []string{"A", "B"},
+				},
+			},
+		},
+		{
+			description:    "duplicate enum_values returns error",
+			prop:           &Type{Name: "mode", Type: "Enum", EnumValues: []string{"A", "B", "A"}},
+			wantErrCount:   1,
+			wantSubstrings: []string{`property mode has duplicate enum_values entry "A" in resource TestResource`},
+		},
+		{
+			description:    "triple duplicate enum_values reports each duplicate value once",
+			prop:           &Type{Name: "mode", Type: "Enum", EnumValues: []string{"A", "A", "A"}},
+			wantErrCount:   1,
+			wantSubstrings: []string{`property mode has duplicate enum_values entry "A" in resource TestResource`},
+		},
+		{
+			description:    "multiple distinct duplicate enum_values reports all",
+			prop:           &Type{Name: "mode", Type: "Enum", EnumValues: []string{"A", "B", "A", "B"}},
+			wantErrCount:   2,
+			wantSubstrings: []string{`duplicate enum_values entry "A"`, `duplicate enum_values entry "B"`},
+		},
+		{
+			description: "Array of Enum with duplicate enum_values returns error",
+			prop: &Type{
+				Name: "modes",
+				Type: "Array",
+				ItemType: &Type{
+					Type:       "Enum",
+					EnumValues: []string{"X", "Y", "X"},
+				},
+			},
+			wantErrCount:   1,
+			wantSubstrings: []string{`property modes has duplicate enum_values entry "X" in resource TestResource`},
+		},
+	}
+
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.description, func(t *testing.T) {
+			t.Parallel()
+			res := &Resource{
+				Name:       "TestResource",
+				Properties: []*Type{tc.prop},
+			}
+			res.SetDefault(p)
+
+			errs := tc.prop.Validate(res.Name)
+			if len(errs) != tc.wantErrCount {
+				t.Fatalf("expected %d error(s), got %d: %v", tc.wantErrCount, len(errs), errs)
+			}
+			for _, want := range tc.wantSubstrings {
+				found := false
+				for _, err := range errs {
+					if strings.Contains(err.Error(), want) {
+						found = true
+						break
+					}
+				}
+				if !found {
+					t.Errorf("expected error containing %q, got: %v", want, errs)
+				}
+			}
+		})
+	}
+}
+
+func TestTypeValidateRequiredConstraints(t *testing.T) {
+	t.Parallel()
+
+	p := &Product{
+		Name: "TestProduct",
+		Versions: []*product.Version{
+			{Name: "ga", BaseUrl: "ga_url"},
+		},
+	}
+
+	strSlicePtr := func(vals ...string) *[]string {
+		s := vals
+		return &s
+	}
+
+	cases := []struct {
+		description string
+		props       []*Type
+		wantErrors  []string
+	}{
+		{
+			description: "required without constraints succeeds",
+			props: []*Type{
+				{Name: "foo", Type: "String", Required: true},
+			},
+		},
+		{
+			description: "required with empty constraint slices succeeds",
+			props: []*Type{
+				{
+					Name:         "foo",
+					Type:         "String",
+					Required:     true,
+					Conflicts:    []string{},
+					ExactlyOneOf: []string{},
+					AtLeastOneOf: []string{},
+				},
+			},
+		},
+		{
+			description: "required with required_with succeeds",
+			props: []*Type{
+				{Name: "foo", Type: "String", Required: true, RequiredWith: []string{"bar"}},
+				{Name: "bar", Type: "String"},
+			},
+		},
+		{
+			description: "optional with conflicts, exactly_one_of, and at_least_one_of succeeds",
+			props: []*Type{
+				{
+					Name:         "foo",
+					Type:         "String",
+					Conflicts:    []string{"bar"},
+					ExactlyOneOf: []string{"foo", "bar"},
+					AtLeastOneOf: []string{"foo", "bar"},
+				},
+				{Name: "bar", Type: "String"},
+			},
+		},
+		{
+			description: "required with conflicts returns error",
+			props: []*Type{
+				{Name: "foo", Type: "String", Required: true, Conflicts: []string{"bar"}},
+				{Name: "bar", Type: "String"},
+			},
+			wantErrors: []string{"property foo cannot set both required and conflicts in resource TestResource"},
+		},
+		{
+			description: "required with exactly_one_of returns error",
+			props: []*Type{
+				{Name: "foo", Type: "String", Required: true, ExactlyOneOf: []string{"foo", "bar"}},
+				{Name: "bar", Type: "String"},
+			},
+			wantErrors: []string{"property foo cannot set both required and exactly_one_of in resource TestResource"},
+		},
+		{
+			description: "required with at_least_one_of returns error",
+			props: []*Type{
+				{Name: "foo", Type: "String", Required: true, AtLeastOneOf: []string{"foo", "bar"}},
+				{Name: "bar", Type: "String"},
+			},
+			wantErrors: []string{"property foo cannot set both required and at_least_one_of in resource TestResource"},
+		},
+		{
+			description: "required with constraint group pointers returns errors",
+			props: []*Type{
+				{
+					Name:              "foo",
+					Type:              "String",
+					Required:          true,
+					ConflictsGroup:    strSlicePtr("bar"),
+					ExactlyOneOfGroup: strSlicePtr("foo", "bar"),
+					AtLeastOneOfGroup: strSlicePtr("foo", "bar"),
+				},
+				{Name: "bar", Type: "String"},
+			},
+			wantErrors: []string{
+				"property foo cannot set both required and conflicts in resource TestResource",
+				"property foo cannot set both required and exactly_one_of in resource TestResource",
+				"property foo cannot set both required and at_least_one_of in resource TestResource",
+			},
+		},
+		{
+			description: "nested required property with conflicts reports full lineage path",
+			props: []*Type{
+				{
+					Name: "nested",
+					Type: "NestedObject",
+					Properties: []*Type{
+						{Name: "foo", Type: "String", Required: true, Conflicts: []string{"nested.0.bar"}},
+						{Name: "bar", Type: "String"},
+					},
+				},
+			},
+			wantErrors: []string{"property nested.foo cannot set both required and conflicts in resource TestResource"},
+		},
+	}
+
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.description, func(t *testing.T) {
+			t.Parallel()
+			res := &Resource{
+				Name:       "TestResource",
+				Properties: tc.props,
+			}
+			res.SetDefault(p)
+
+			errs := tc.props[0].Validate(res.Name)
+			if len(tc.wantErrors) == 0 {
+				if len(errs) > 0 {
+					t.Fatalf("expected no errors, got: %v", errs)
+				}
+				return
+			}
+			for _, want := range tc.wantErrors {
+				found := false
+				for _, err := range errs {
+					if strings.Contains(err.Error(), want) {
+						found = true
+						break
+					}
+				}
+				if !found {
+					t.Errorf("expected error containing %q, got: %v", want, errs)
+				}
+			}
+		})
+	}
+}

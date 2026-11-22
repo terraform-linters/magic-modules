@@ -237,11 +237,13 @@ for more information.
 * `enable_k8s_beta_apis` - (Optional) Configuration for Kubernetes Beta APIs.
     Structure is [documented below](#nested_enable_k8s_beta_apis).
 
-* `enable_tpu` - (Optional) Whether to enable Cloud TPU resources in this cluster.
+* `enable_tpu` - (Optional, Deprecated) Whether to enable Cloud TPU resources in this cluster.
     See the [official documentation](https://cloud.google.com/tpu/docs/kubernetes-engine-setup).
+    `enable_tpu` is deprecated and will be removed in a future major release. Configure TPUs using `google_container_node_pool` instead. See https://docs.cloud.google.com/kubernetes-engine/docs/how-to/tpus#terraform
 
-* `tpu_config` - (Optional, [Beta](../guides/provider_versions.html.markdown)) Configuration for Cloud TPU in this cluster.
+* `tpu_config` - (Optional, [Beta](../guides/provider_versions.html.markdown), Deprecated) Configuration for Cloud TPU in this cluster.
     Structure is [documented below](#nested_tpu_config).
+    `tpu_config` is deprecated and will be removed in a future major release. Configure TPUs using `google_container_node_pool` instead. See https://docs.cloud.google.com/kubernetes-engine/docs/how-to/tpus#terraform
 
 * `enable_legacy_abac` - (Optional) Whether the ABAC authorizer is enabled for this cluster.
     When enabled, identities in the system, including service accounts, nodes, and controllers,
@@ -357,8 +359,10 @@ region are guaranteed to support the same version.
 * `skip_node_pool_refresh` - (Optional) Whether to skip refreshing the GKE cluster's inline node pool list during read operations. Setting this to `true` prevents the provider from querying GKE API for node pools, resolving long plan times on clusters with a large number of node pools. **Warning:** When enabled, the cluster's `node_pool` attribute in the Terraform state will remain empty (`[]`), even if node pools exist externally. This flag cannot be set to `true` if you define inline `node_pool` blocks in your configuration; doing so will result in a validation error during plan.
 
 * `node_pool_auto_config` - (Optional) Node pool configs that apply to auto-provisioned node pools in
-    [autopilot](https://cloud.google.com/kubernetes-engine/docs/concepts/autopilot-overview#comparison) clusters and
-    [node auto-provisioning](https://cloud.google.com/kubernetes-engine/docs/how-to/node-auto-provisioning)-enabled clusters. Structure is [documented below](#nested_node_pool_auto_config).
+    [autopilot](https://cloud.google.com/kubernetes-engine/docs/concepts/autopilot-overview#comparison) clusters,
+    [node auto-provisioning](https://cloud.google.com/kubernetes-engine/docs/how-to/node-auto-provisioning)-enabled clusters, and
+    node pools auto-created by [ComputeClasses](https://cloud.google.com/kubernetes-engine/docs/concepts/node-auto-provisioning#workload-level-enablement)
+    in Standard clusters. Structure is [documented below](#nested_node_pool_auto_config).
 
 * `node_pool_defaults` - (Optional) Default NodePool settings for the entire cluster. These settings are overridden if specified on the specific NodePool object. Structure is [documented below](#nested_node_pool_defaults).
 
@@ -526,7 +530,7 @@ Fleet configuration for the cluster. Structure is [documented below](#nested_fle
   Configuration for [anonymous authentication restrictions](https://cloud.google.com/kubernetes-engine/docs/how-to/hardening-your-cluster#restrict-anon-access). Structure is [documented below](#anonymous_authentication_config).
 
 * `node_creation_config` - (Optional)
-  Configuration for [node creation config](https://clouddocs.devsite.corp.google.com/kubernetes-engine/security/control-plane-node-creation). Structure is [documented below](#node_creation_config).
+  Configuration for [node creation config](https://cloud.google.com/kubernetes-engine/security/control-plane-node-creation). Structure is [documented below](#node_creation_config).
 
 * `rbac_binding_config` - (Optional)
   RBACBindingConfig allows user to restrict ClusterRoleBindings an RoleBindings that can be created. Structure is [documented below](#nested_rbac_binding_config).
@@ -1135,7 +1139,9 @@ This block also contains several computed attributes, documented below.
     Kubernetes cluster master through HTTPS.
 
 * `gcp_public_cidrs_access_enabled` - (Optional) Whether Kubernetes master is
-    accessible via Google Compute Engine Public IPs.
+    accessible via Google Compute Engine Public IPs. If unset, GKE chooses the
+    default on cluster creation and preserves the current setting on existing
+    clusters; set `true` or `false` explicitly to change it.
 
 * `private_endpoint_enforcement_enabled` - (Optional) Whether authorized networks is enforced on the private endpoint or not.
 
@@ -1413,6 +1419,8 @@ sole_tenant_config {
 
 * `data_cache_count` (Optional) - Number of raw-block local NVMe SSD disks to be attached to the node utilized for GKE Data Cache. If zero, then GKE Data Cache will not be enabled in the nodes.
 
+* `ephemeral_capacity_gb` - (Optional) Number of gigabytes of local SSD capacity to use for ephemeral storage in mixed local SSD mode. The remaining capacity is available for raw block storage.
+
 <a name="nested_fast_socket"></a>The `fast_socket` block supports:
 
 * `enabled` (Required) - Whether or not the NCCL Fast Socket is enabled
@@ -1656,7 +1664,7 @@ The `control_plane_endpoints_config.dns_endpoint_config` block supports:
 
 * `endpoint` - (Output) The cluster's DNS endpoint.
 
-* `allow_external_traffic` - (Optional) Controls whether user traffic is allowed over this endpoint. Note that GCP-managed services may still use the endpoint even if this is false.
+* `allow_external_traffic` - (Optional) Controls whether user traffic is allowed over this endpoint. Note that GCP-managed services may still use the endpoint even if this is false. If unset, GKE chooses the default on cluster creation based on the cluster version and other settings, and preserves the current setting on existing clusters; set `true` or `false` explicitly to change it.
 
 * `enable_k8s_tokens_via_dns` - (Optional) Controls whether the k8s token auth is allowed via Dns.
 
@@ -1664,7 +1672,7 @@ The `control_plane_endpoints_config.dns_endpoint_config` block supports:
 
 The `control_plane_endpoints_config.ip_endpoints_config` block supports:
 
-* `enabled` - (Optional) Controls whether to allow direct IP access. Defaults to `true`.
+* `enabled` - (Optional) Controls whether to allow direct IP access. If unset (or if `ip_endpoints_config` is omitted), GKE chooses the default on cluster creation based on the cluster version and other settings (for example, newer GKE versions disable direct IP access by default unless IP-specific settings such as `master_authorized_networks_config` are configured), and preserves the current setting on existing clusters; set `true` or `false` explicitly to change it.
 
 <a name="nested_private_cluster_config"></a>The `private_cluster_config` block supports:
 
